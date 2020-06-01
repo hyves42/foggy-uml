@@ -17,7 +17,7 @@ use parseutils::*;
 // - state changes
 // - vertical sepration
 
-static reserved_tokens_header: [&'static str;6] = [
+static reserved_tokens_header: [&'static str;12] = [
 	//actors definitions in header
 	"participant",
 	"actor", 
@@ -28,27 +28,26 @@ static reserved_tokens_header: [&'static str;6] = [
 	"collections",
 	"box",
 	"title",
-	"end"
+	"end",
 	"hide",
 	"show",
 	];
 
-static reserved_tokens_sequence: [&'static str;5] = [
+static reserved_tokens_sequence: [&'static str;20] = [
 	"alt",
 	"else",
 	"group",
 	"loop",
 	"end",
-	"ref"
+	"ref",
 	"note",
 	"rnote", 
 	"hnote",
-
 	"activate",
 	"destroy",
 	"deactivate",
 	"deactivate",
-	"return"
+	"return",
 	"...",
 	"|||",
 	"||",
