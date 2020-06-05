@@ -1,6 +1,8 @@
 use std::rc::Rc;
+use std::cell::{RefCell, RefMut, Ref};
 use datatypes::{LineWithContext, SliceWithContext};
 use parseutils::*;
+
 
 
 #[derive(Debug)]
@@ -20,7 +22,7 @@ pub enum ElementType {
 pub struct Element {
     pub value: String, // in case of string type, the text content. otherwise, an ID? an element name ?
     pub etype: ElementType,
-    pub children: Vec<Element>,
+    pub children: Vec<Rc<RefCell<Element>>>,
     pub attributes: Vec<(String, String)>,
 }
 
@@ -52,5 +54,5 @@ pub trait Parser {
     // -> parser returned Done
     // -> combinator found that the context of this parser is finished (end token or start token of an other parser)
     // After flush is called, I consider that the parser cannot be used anymore
-    fn flush(&mut self) -> (Vec<Element>, Vec<Document>);
+    fn flush(&mut self) -> (Vec<Rc<RefCell<Element>>>, Vec<Rc<RefCell<Document>>>);
 }

@@ -1,5 +1,5 @@
 use std::rc::Rc;
-
+use std::cell::{RefCell, RefMut, Ref};
 use datatypes::SliceWithContext;
 use parsers::datatypes::{ElementType, Element, Document, Parser, ParserResult};
 use parseutils::*;
@@ -90,18 +90,18 @@ impl Parser for StringParser {
         return Err((input, String::from("invalid token")));
     }
 
-    fn flush(&mut self) -> (Vec<Element>, Vec<Document>) {
+    fn flush(&mut self) -> (Vec<Rc<RefCell<Element>>>, Vec<Rc<RefCell<Document>>>) {
         if self.collec == None {
             return (vec![], vec![]);
         }
 
         let mut elements = Vec::new();
-        elements.push(Element {
+        elements.push(Rc::new(RefCell::new(Element {
             value: self.collec.take().unwrap(),
             etype: ElementType::StringType,
             children: vec![],
             attributes: vec![],
-        });
+        })));
 
         return (elements, vec![]);
     }
@@ -140,7 +140,7 @@ mod tests {
 
         let (elements, documents) = parser.flush();
         assert_eq!(elements.len(), 1);
-        assert_eq!(elements[0].value, "coucou");
+        assert_eq!(elements[0].borrow().value, "coucou");
     }
 
     #[test]
@@ -165,7 +165,7 @@ mod tests {
 
         let (elements, documents) = parser.flush();
         assert_eq!(elements.len(), 1);
-        assert_eq!(elements[0].value, "coucou");
+        assert_eq!(elements[0].borrow().value, "coucou");
     }
 
     #[test]
@@ -204,7 +204,7 @@ mod tests {
 
         let (elements, documents) = parser.flush();
         assert_eq!(elements.len(), 1);
-        assert_eq!(elements[0].value, "cou\ncou");
+        assert_eq!(elements[0].borrow().value, "cou\ncou");
     }
 
     #[test]
@@ -227,7 +227,7 @@ mod tests {
 
         let (elements, documents) = parser.flush();
         assert_eq!(elements.len(), 1);
-        assert_eq!(elements[0].value, "cou☃cou");
+        assert_eq!(elements[0].borrow().value, "cou☃cou");
     }
 
     #[test]
@@ -251,7 +251,7 @@ mod tests {
 
         let (elements, documents) = parser.flush();
         assert_eq!(elements.len(), 1);
-        assert_eq!(elements[0].value, "");
+        assert_eq!(elements[0].borrow().value, "");
     }
 
 

@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::cell::{RefCell, RefMut, Ref};
 use parsers::datatypes::{ElementType, Element, Document, Parser, ParserResult};
 use datatypes::{LineWithContext, SliceWithContext};
 use parseutils::*;
@@ -18,9 +19,9 @@ struct MarkdownParser {
     // a string buffer to collect text for the element being parsed
     collec: Option<String>,
     // full tree structure of document
-    root: Option<Element>,
+    root: Element,
     // indicates the current depth in the element branches, with associated closing conditions
-    open_tokens: Vec<MDCloseCondition>,
+    open_tokens: Vec<(Rc<RefCell<Element>>,MDCloseCondition)>,
 }
 // Principle of operation is simple:
 // we are always writing (adding children) at the end of the element tree designated by self.root.
@@ -41,12 +42,12 @@ impl MarkdownParser {
     fn new() -> MarkdownParser {
         MarkdownParser {
             collec: Some(String::new()),
-            root: Some(Element {
+            root: Element {
                 value: String::new(),
                 etype: ElementType::StructureType,
                 children: vec![],
                 attributes: vec![],
-            }),
+            },
             open_tokens: Vec::new(),
         }
     }
@@ -65,8 +66,9 @@ impl MarkdownParser {
                 (String::from("level"), level.to_string()),
             ],
         };
-        self.root.as_mut().unwrap().children.push(element);
-        self.open_tokens.push(MDCloseCondition::Eol);
+        let ptr=Rc::new(RefCell::new(element));
+        self.root.children.push(Rc::clone(&ptr));
+        self.open_tokens.push((Rc::clone(&ptr), MDCloseCondition::Eol));
     }
 
     fn push_formatter(&mut self, token: &str, format: &str) {
@@ -78,10 +80,11 @@ impl MarkdownParser {
                 (String::from("format"), String::from(format)),
             ],
         };
-        // find where to push this formatter
+        let ptr=Rc::new(RefCell::new(element));
+
         self.collect_to_last_leaf();
-        self.push_to_last_leaf(element);
-        self.open_tokens.push(MDCloseCondition::Token(String::from(token)));
+        self.push_to_last_leaf(Rc::clone(&ptr));
+        self.open_tokens.push((Rc::clone(&ptr), MDCloseCondition::Token(String::from(token))));
     }
 
     fn push_paragraph(&mut self) {
@@ -93,25 +96,18 @@ impl MarkdownParser {
                 (String::from("format"), String::from("paragraph")),
             ],
         };
-        // find where to push this formatter
+        let ptr=Rc::new(RefCell::new(element));
         self.collect_to_last_leaf();
-        self.push_to_last_leaf(element);
-        self.open_tokens.push(MDCloseCondition::EmptyLine);
+        self.push_to_last_leaf(Rc::clone(&ptr));
+        self.open_tokens.push((Rc::clone(&ptr),MDCloseCondition::EmptyLine));
     }
 
 
-    fn push_to_last_leaf(&mut self, element:Element){
-        // Find the element where we shall push new children elements
-        // - that's the last element on the last branch of the tree
-        // - at the depth level currently described by the number of open tokens
-        let mut cursor: &mut Element  = &mut self.root.as_mut().unwrap();
-        let mut l:usize = self.open_tokens.len();
-
-        while l>0{
-            l-=1;
-            cursor = cursor.children.last_mut().unwrap();
+    fn push_to_last_leaf(&mut self, element:Rc<RefCell<Element>>){
+        match self.open_tokens.last() {
+            Some((ptr, _)) => ptr.borrow_mut().children.push(element),
+            None => self.root.children.push(element),
         }
-        cursor.children.push(element);
     }
 
     fn collect_to_last_leaf(&mut self){
@@ -126,8 +122,8 @@ impl MarkdownParser {
             children: vec![],
             attributes: vec![],
         };
-
-        self.push_to_last_leaf(element);
+        let ptr=Rc::new(RefCell::new(element));
+        self.push_to_last_leaf(Rc::clone(&ptr));
 
         // we have taken self.collec, create it again
         self.collec=Some(String::new());
@@ -143,7 +139,7 @@ impl MarkdownParser {
     fn collect_all_open_tokens_until_cond(&mut self, cond: &MDCloseCondition){
         self.collect_to_last_leaf();
 
-        while let Some(token) = self.open_tokens.pop(){
+        while let Some((_, token)) = self.open_tokens.pop(){
             if token == *cond{
                 return;
             }
@@ -154,7 +150,7 @@ impl MarkdownParser {
 
         let iter = self.open_tokens.iter();
 
-        for token in iter {
+        for (_, token) in iter {
             if token == cond{
                 return true;
             }
@@ -251,9 +247,9 @@ impl Parser for MarkdownParser{
         return Ok(ParserResult::Partial(input));
     }
 
-    fn flush(&mut self) -> (Vec<Element>, Vec<Document>) {
+    fn flush(&mut self) -> (Vec<Rc<RefCell<Element>>>, Vec<Rc<RefCell<Document>>>) {
         self.collect_all_open_tokens();
-        return (vec![self.root.take().unwrap()], vec![]);
+        return (self.root.children.clone(), vec![]);
     }
 }
 
@@ -288,29 +284,25 @@ mod tests {
 
         let (elements, documents) = parser.flush();
 
-        let expected = vec![Element {
-            value: "".to_string(),
-            etype: ElementType::StructureType,
-            attributes: vec![],
-            children: vec![
-                Element {
-                    value: "".to_string(),
-                    etype: ElementType::StructureType,
-                    attributes: vec![
-                        (String::from("format"), String::from("title")),
-                        (String::from("level"), "2".to_string()),            
-                    ],
-                    children: vec![
-                        Element {
-                            value: "Title".to_string(),
-                            etype: ElementType::StringType,
-                            attributes: vec![],
-                            children: vec![],
-                        }
-                    ],
-                }
-            ],
-        }];
+        let expected = vec![
+            Rc::new(RefCell::new(Element {
+                value: "".to_string(),
+                etype: ElementType::StructureType,
+                attributes: vec![
+                    (String::from("format"), String::from("title")),
+                    (String::from("level"), "2".to_string()),            
+                ],
+                children: vec![
+                    Rc::new(RefCell::new(Element {
+                        value: "Title".to_string(),
+                        etype: ElementType::StringType,
+                        attributes: vec![],
+                        children: vec![],
+                    }))
+                ],
+            }))
+        ];
+
 
         assert_eq!(elements, expected );
     }
@@ -335,12 +327,7 @@ mod tests {
 
         let (elements, documents) = parser.flush();
 
-        let expected = vec![Element {
-            value: "".to_string(),
-            etype: ElementType::StructureType,
-            attributes: vec![],
-            children: vec![],
-        }];
+        let expected = vec![];
         assert_eq!(elements, expected);
     }
 
@@ -364,28 +351,23 @@ mod tests {
 
         let (elements, documents) = parser.flush();
 
-        let expected = vec![Element {
-            value: "".to_string(),
-            etype: ElementType::StructureType,
-            attributes: vec![],
-            children:vec![
-                Element {
-                    value: "".to_string(),
-                    etype: ElementType::StructureType,
-                    attributes: vec![
-                        (String::from("format"), String::from("paragraph")),
-                    ],
-                    children: vec![
-                        Element {
-                            value: "line 1".to_string(),
-                            etype: ElementType::StringType,
-                            attributes: vec![],
-                            children: vec![],
-                        }
-                    ]
-                }
-            ],
-        }];
+        let expected = vec![
+            Rc::new(RefCell::new(Element {
+                value: "".to_string(),
+                etype: ElementType::StructureType,
+                attributes: vec![
+                    (String::from("format"), String::from("paragraph")),
+                ],
+                children: vec![
+                    Rc::new(RefCell::new(Element {
+                        value: "line 1".to_string(),
+                        etype: ElementType::StringType,
+                        attributes: vec![],
+                        children: vec![],
+                    }))
+                ]
+            }))
+        ];
         assert_eq!(elements, expected);
     }
 
@@ -420,28 +402,23 @@ mod tests {
 
         let (elements, documents) = parser.flush();
 
-        let expected = vec![Element {
-            value: "".to_string(),
-            etype: ElementType::StructureType,
-            attributes: vec![],
-            children:vec![
-                Element {
-                    value: "".to_string(),
-                    etype: ElementType::StructureType,
-                    attributes: vec![
-                        (String::from("format"), String::from("paragraph")),
-                    ],
-                    children: vec![
-                        Element {
-                            value: "line 1line 2".to_string(),
-                            etype: ElementType::StringType,
-                            attributes: vec![],
-                            children: vec![],
-                        }
-                    ]
-                }
-            ],
-        }];
+        let expected = vec![
+            Rc::new(RefCell::new(Element {
+                value: "".to_string(),
+                etype: ElementType::StructureType,
+                attributes: vec![
+                    (String::from("format"), String::from("paragraph")),
+                ],
+                children: vec![
+                    Rc::new(RefCell::new(Element {
+                        value: "line 1line 2".to_string(),
+                        etype: ElementType::StringType,
+                        attributes: vec![],
+                        children: vec![],
+                    }))
+                ]
+            }))
+        ];
         assert_eq!(elements, expected);
     }
 
@@ -467,35 +444,30 @@ mod tests {
 
         let (elements, documents) = parser.flush();
 
-        let expected = vec![Element {
-            value: "".to_string(),
-            etype: ElementType::StructureType,
-            attributes: vec![],
-            children: vec![
-                Element {
-                    value: "".to_string(),
-                    etype: ElementType::StructureType,
-                    attributes: vec![
-                        (String::from("format"), String::from("paragraph")),
-                    ],
-                    children: vec![
-                        Element {
-                            value: "".to_string(),
-                            etype: ElementType::StructureType,
-                            attributes: vec![
-                                (String::from("format"), String::from("bold")),           
-                            ],
-                            children: vec![Element {
-                                value: "bold".to_string(),
-                                etype: ElementType::StringType,
-                                attributes: vec![],
-                                children: vec![],
-                            }],
-                        }
-                    ],
-                }
-            ]
-        }];
+        let expected = vec![
+            Rc::new(RefCell::new(Element {
+                value: "".to_string(),
+                etype: ElementType::StructureType,
+                attributes: vec![
+                    (String::from("format"), String::from("paragraph")),
+                ],
+                children: vec![
+                    Rc::new(RefCell::new(Element {
+                        value: "".to_string(),
+                        etype: ElementType::StructureType,
+                        attributes: vec![
+                            (String::from("format"), String::from("bold")),           
+                        ],
+                        children: vec![Rc::new(RefCell::new(Element {
+                            value: "bold".to_string(),
+                            etype: ElementType::StringType,
+                            attributes: vec![],
+                            children: vec![],
+                        }))],
+                    }))
+                ],
+            }))
+        ];
 
         assert_eq!(elements, expected );
     }
@@ -521,47 +493,42 @@ mod tests {
 
         let (elements, documents) = parser.flush();
 
-        let expected = vec![Element {
-            value: "".to_string(),
-            etype: ElementType::StructureType,
-            attributes: vec![],
-            children: vec![
-                Element {
-                    value: "".to_string(),
-                    etype: ElementType::StructureType,
-                    attributes: vec![
-                        (String::from("format"), String::from("paragraph")),
-                    ],
-                    children: vec![
-                        Element {
-                            value: "text1".to_string(),
+        let expected = vec![
+            Rc::new(RefCell::new(Element {
+                value: "".to_string(),
+                etype: ElementType::StructureType,
+                attributes: vec![
+                    (String::from("format"), String::from("paragraph")),
+                ],
+                children: vec![
+                    Rc::new(RefCell::new(Element {
+                        value: "text1".to_string(),
+                        etype: ElementType::StringType,
+                        attributes: vec![],
+                        children: vec![],
+                    })),
+                    Rc::new(RefCell::new(Element {
+                        value: "".to_string(),
+                        etype: ElementType::StructureType,
+                        attributes: vec![
+                            (String::from("format"), String::from("bold")),           
+                        ],
+                        children: vec![Rc::new(RefCell::new(Element {
+                            value: "bald".to_string(),
                             etype: ElementType::StringType,
                             attributes: vec![],
                             children: vec![],
-                        },
-                        Element {
-                            value: "".to_string(),
-                            etype: ElementType::StructureType,
-                            attributes: vec![
-                                (String::from("format"), String::from("bold")),           
-                            ],
-                            children: vec![Element {
-                                value: "bald".to_string(),
-                                etype: ElementType::StringType,
-                                attributes: vec![],
-                                children: vec![],
-                            }],
-                        },
-                        Element {
-                            value: "text2".to_string(),
-                            etype: ElementType::StringType,
-                            attributes: vec![],
-                            children: vec![],
-                        }
-                    ]
-                }
-            ],
-        }];
+                        }))],
+                    })),
+                    Rc::new(RefCell::new(Element {
+                        value: "text2".to_string(),
+                        etype: ElementType::StringType,
+                        attributes: vec![],
+                        children: vec![],
+                    }))
+                ]
+            }))
+        ];
 
         assert_eq!(elements, expected);
     }
@@ -598,55 +565,50 @@ mod tests {
 
         let (elements, documents) = parser.flush();
 
-        let expected = vec![Element {
-            value: "".to_string(),
-            etype: ElementType::StructureType,
-            attributes: vec![],
-            children: vec![
-                Element {
-                    value: "".to_string(),
-                    etype: ElementType::StructureType,
-                    attributes: vec![
-                        (String::from("format"), String::from("title")),
-                        (String::from("level"), "1".to_string()),            
-                    ],
-                    children: vec![
-                        Element {
-                            value: "title ".to_string(),
-                            etype: ElementType::StringType,
-                            attributes: vec![],
-                            children: vec![],
-                        },
-                        Element {
-                            value: "".to_string(),
-                            etype: ElementType::StructureType,
-                            attributes: vec![
-                                (String::from("format"), String::from("bold")),           
-                            ],
-                            children: vec![Element {
-                                value: "but bold this time".to_string(),
-                                etype: ElementType::StringType,
-                                attributes: vec![],
-                                children: vec![],
-                            }],
-                        },
-                    ],
-                },
-                Element {
-                    value: "".to_string(),
-                    etype: ElementType::StructureType,
-                    attributes: vec![
-                        (String::from("format"), String::from("paragraph")),
-                    ],
-                    children: vec![Element {
-                        value: "normal text".to_string(),
+        let expected = vec![
+            Rc::new(RefCell::new(Element {
+                value: "".to_string(),
+                etype: ElementType::StructureType,
+                attributes: vec![
+                    (String::from("format"), String::from("title")),
+                    (String::from("level"), "1".to_string()),            
+                ],
+                children: vec![
+                    Rc::new(RefCell::new(Element {
+                        value: "title ".to_string(),
                         etype: ElementType::StringType,
                         attributes: vec![],
                         children: vec![],
-                    }],
-                },
-            ],
-        }];
+                    })),
+                    Rc::new(RefCell::new(Element {
+                        value: "".to_string(),
+                        etype: ElementType::StructureType,
+                        attributes: vec![
+                            (String::from("format"), String::from("bold")),           
+                        ],
+                        children: vec![Rc::new(RefCell::new(Element {
+                            value: "but bold this time".to_string(),
+                            etype: ElementType::StringType,
+                            attributes: vec![],
+                            children: vec![],
+                        }))],
+                    })),
+                ],
+            })),
+            Rc::new(RefCell::new(Element {
+                value: "".to_string(),
+                etype: ElementType::StructureType,
+                attributes: vec![
+                    (String::from("format"), String::from("paragraph")),
+                ],
+                children: vec![Rc::new(RefCell::new(Element {
+                    value: "normal text".to_string(),
+                    etype: ElementType::StringType,
+                    attributes: vec![],
+                    children: vec![],
+                }))],
+            })),
+        ];
 
         assert_eq!(elements, expected);
     }
