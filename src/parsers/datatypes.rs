@@ -25,6 +25,26 @@ pub struct Element {
     pub attributes: Vec<(String, String)>,
 }
 
+impl Element {
+    pub fn new() -> Element{
+        Element {
+            value: String::new(),
+            etype: ElementType::StructureType,
+            children:vec![],
+            attributes:vec![],
+        }
+    }
+
+    pub fn new_str(text: &str) -> Element{
+        Element {
+            value: String::from(text),
+            etype: ElementType::StringType,
+            children:vec![],
+            attributes:vec![],
+        }
+    } 
+}
+
 #[derive(Debug)]
 pub struct Document {
     pub children: Vec<Element>,

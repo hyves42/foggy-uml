@@ -16,10 +16,13 @@ impl StringParser {
         }
     }
 
-    fn is_start_word(_input: &str) -> bool {
-        return false;
+    pub fn is_start_word(input: &str) -> bool {
+        match consume_token_in_list(input, Self::get_start_words()){
+            Ok(_)=> return true,
+            Err(_) => return false
+        }
     }
-    fn get_start_words() -> &'static [&'static str] {
+    pub fn get_start_words() -> &'static [&'static str] {
         return &["\"\"\"", "\"", "\'"];
     }
 }
