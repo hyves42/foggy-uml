@@ -31,8 +31,8 @@ static reserved_tokens_header: [&'static str;12] = [
     "collections",
     //other stuff
     "box",
+    "end box",
     "title",
-    "end",
     "hide",
     "show",
     ];
@@ -66,6 +66,12 @@ enum SequenceDiagramParserState{
     Content
 }
 
+#[derive(PartialEq)]
+enum HDCloseCondition {
+    EndBox, // Close on 'end box'
+}
+
+
 struct SequenceDiagramParser {
     // a string buffer to collect text for the element being parsed
     collec: Option<String>,
@@ -74,7 +80,7 @@ struct SequenceDiagramParser {
     header: Vec<Rc<RefCell<Element>>>, //header root element
     sequence: Option<Element>,
     state: SequenceDiagramParserState,
-    open_header_tokens: Vec<Rc<RefCell<Element>>>,
+    open_header_tokens: Vec<(Rc<RefCell<Element>>, HDCloseCondition)>,
 }
 
 
@@ -108,9 +114,8 @@ impl SequenceDiagramParser {
         }
 
 
-
-        {
-            let res=Self::consume_participant_name(slice);
+        { // parse participant name, store it in name_element
+            let res=Self::consume_name(slice);
             match res{
                 Ok((new_slice, ptr)) => {
                     name_element = Some(Rc::clone(&ptr));
@@ -154,9 +159,10 @@ impl SequenceDiagramParser {
                     return Err(String::from("Expecting value for alias name"));
                 }
                 alias_name=Some(String::from(alias));
-            } 
+            }
         }
 
+        // Build participant element ans push it to header
         let mut header_element = Element::new();
         header_element.attributes.push((String::from("type"), String::from(def_token)));
         header_element.children.push(name_element.take().unwrap());
@@ -172,12 +178,79 @@ impl SequenceDiagramParser {
 
         }
 
-        self.header.push(Rc::new(RefCell::new(header_element)));
+        self.push_to_header(Rc::new(RefCell::new(header_element)));
+        return Ok(());
+    }
+
+
+    fn add_box<'a>(&mut self, input: &str)
+        -> Result<(), String>{
+
+        let mut slice=input;
+        let mut name_element: Option<Rc<RefCell<Element>>>=None;
+        let mut alias_name: Option<String>=None;        
+
+        //expected : space name [space] ['#' color]]
+
+        {
+            let (new_slice, spaces) = consume_whitespaces(slice);
+            if spaces.len()==0{
+                return Err(String::from("Expecting spaces"));
+            }
+            slice = new_slice;
+        }
+
+
+        { // parse box name, store it in name_element
+            let res=Self::consume_name(slice);
+            match res{
+                Ok((new_slice, ptr)) => {
+                    name_element = Some(Rc::clone(&ptr));
+                    slice = new_slice;
+                }
+                Err(s) => return Err(s)
+            }
+        }
+
+        {
+            let (new_slice, spaces) = consume_whitespaces(slice);
+            slice = new_slice;
+        }
+        // Handle optional '# color' part
+        if slice.len()>0{
+            // TODO
+        }
+
+
+        // Build box element ans push it to header
+        let mut header_element = Element::new();
+        header_element.attributes.push((String::from("type"), String::from("box")));
+        header_element.children.push(name_element.take().unwrap());
+
+        let ptr = Rc::new(RefCell::new(header_element));
+        self.push_to_header(Rc::clone(&ptr));
+        self.open_header_tokens.push((Rc::clone(&ptr), HDCloseCondition::EndBox));
+
+
+        return Err(String::from("pafé"));
+    }
+
+    fn end_box<'a>(&mut self)-> Result<(), String>{
+        if !self.is_header_close_condition(&HDCloseCondition::EndBox){
+            return Err(String::from("'end box' token not expected"));
+        }
+
+        while let Some((_, token)) = self.open_header_tokens.pop(){
+            if token == HDCloseCondition::EndBox{
+                return Ok(());
+            }
+        }
+        // Should not be reached
         return Ok(());
     }
 
     // TODO doesn't handle markdown formatters in name string yet
-    fn  consume_participant_name (input: &str)->Result<(&str, Rc<RefCell<Element>>), String>{
+    fn  consume_name (input: &str)->Result<(&str, Rc<RefCell<Element>>), String>{
         let string_tokens=["\"", "'"];
         if starts_with_token(input, &string_tokens){
             // Read participant name as a string
@@ -203,10 +276,22 @@ impl SequenceDiagramParser {
 
     fn push_to_header(&mut self, element:Rc<RefCell<Element>>){
         match self.open_header_tokens.last() {
-            Some(ptr) => ptr.borrow_mut().children.push(element),
+            Some((ptr,_)) => ptr.borrow_mut().children.push(element),
             None => self.header.push(element),
         }
     }
+
+    fn is_header_close_condition(&mut self, cond: &HDCloseCondition) -> bool{
+
+        let iter = self.open_header_tokens.iter();
+
+        for (_, token) in iter {
+            if token == cond{
+                return true;
+            }
+        }
+        return false;
+    }    
 }
 
 impl Parser for SequenceDiagramParser{
@@ -229,9 +314,9 @@ impl Parser for SequenceDiagramParser{
                 match token {
                     "participant"|"actor"|"boundary"|"control"|"entity"|"database"|"collections" 
                         => {self.add_participant(input.slice, token);},
-                    "box" => return Err((input, String::from("runtime error, invalid condition"))),
+                    "box" => {self.add_box(input.slice);},
+                    "end box" => {self.end_box();},
                     "title" => return Err((input, String::from("runtime error, invalid condition"))),
-                    "end" => return Err((input, String::from("runtime error, invalid condition"))),
                     "hide" => return Err((input, String::from("runtime error, invalid condition"))),
                     "show" => return Err((input, String::from("runtime error, invalid condition"))),
                     _ => return Err((input, String::from("runtime error, invalid condition"))),
@@ -313,17 +398,17 @@ mod tests {
     use datatypes::{LineWithContext, SliceWithContext};
     use std::rc::Rc;
 
+
+
+    // Internal unit tests
+    // These tests verify the internal state of the parser
+    // As it is based on a trees/stacks build, 
+    // I want to verify my assumptions about the instance internal state
     #[test]
-    fn test_sequenceparser_header1() {
+    fn test_int_sequenceparser_header1() {
         let mut parser = SequenceDiagramParser::new();
 
-        let mut slice = SliceWithContext {
-            slice: &"participant bob",
-            line: 0,
-            pos: 0,
-            file_name: Rc::new(String::from("file.txt")),
-        };
-
+        let mut slice = SliceWithContext::new_for_tests(&"participant bob");
         let returned = parser.step(&mut slice);
 
         assert!(!returned.is_err());
@@ -353,15 +438,10 @@ mod tests {
 
 
     #[test]
-    fn test_sequenceparser_header2() {
+    fn test_int_sequenceparser_header2() {
         let mut parser = SequenceDiagramParser::new();
 
-        let mut slice = SliceWithContext {
-            slice: &"participant bobby as bob",
-            line: 0,
-            pos: 0,
-            file_name: Rc::new(String::from("file.txt")),
-        };
+        let mut slice = SliceWithContext::new_for_tests(&"participant bobby as bob");
 
         let returned = parser.step(&mut slice);
 
@@ -390,15 +470,10 @@ mod tests {
     }
 
     #[test]
-    fn test_sequenceparser_header3() {
+    fn test_int_sequenceparser_header3() {
         let mut parser = SequenceDiagramParser::new();
 
-        let mut slice = SliceWithContext {
-            slice: &"participant \"bobby the 🐶\" as bob",
-            line: 0,
-            pos: 0,
-            file_name: Rc::new(String::from("file.txt")),
-        };
+        let mut slice = SliceWithContext::new_for_tests(&"participant \"bobby the 🐶\" as bob");
 
         let returned = parser.step(&mut slice);
 
@@ -426,16 +501,11 @@ mod tests {
         assert_eq!(parser.header, expected);
     }
 
-        #[test]
-    fn test_sequenceparser_header4() {
+    #[test]
+    fn test_int_sequenceparser_header4() {
         let mut parser = SequenceDiagramParser::new();
 
-        let mut slice = SliceWithContext {
-            slice: &"actor \"bobby the 🐶\" as bob",
-            line: 0,
-            pos: 0,
-            file_name: Rc::new(String::from("file.txt")),
-        };
+        let mut slice = SliceWithContext::new_for_tests(&"actor \"bobby the 🐶\" as bob");
 
         let returned = parser.step(&mut slice);
 
@@ -462,4 +532,142 @@ mod tests {
         ];
         assert_eq!(parser.header, expected);
     }
+
+
+    #[test]
+    fn test_int_sequenceparser_box1() {
+        let mut parser = SequenceDiagramParser::new();
+
+        let mut slice = SliceWithContext::new_for_tests(&"box \"boxxy\"");
+
+        let returned = parser.step(&mut slice);
+
+        assert!(!returned.is_err());
+        assert_eq!(parser.header.len(), 1);
+
+        let expected:Vec<Rc<RefCell<Element>>>=vec![
+            Rc::new(RefCell::new(Element{
+                value: String::new(),
+                etype: ElementType::StructureType,
+                children: vec![
+                    Rc::new(RefCell::new(Element{
+                        value: String::from("boxxy"),
+                        etype: ElementType::StringType,
+                        children: vec![],
+                        attributes: vec![],
+                    }))
+                ],
+                attributes: vec![
+                    (String::from("type"), String::from("box")),
+                ]
+            }))        
+        ];
+        assert_eq!(parser.header, expected);
+    }
+
+    #[test]
+    fn test_int_sequenceparser_box2() {
+        let mut parser = SequenceDiagramParser::new();
+
+        {
+            let mut slice = SliceWithContext::new_for_tests(&"box \"boxxy\"");
+            let returned = parser.step(&mut slice);
+        }
+        {
+            let mut slice = SliceWithContext::new_for_tests(&"participant bob");
+            let returned = parser.step(&mut slice);
+        }
+        assert_eq!(parser.header.len(), 1);
+
+        let expected:Vec<Rc<RefCell<Element>>>=vec![
+            Rc::new(RefCell::new(Element{
+                value: String::new(),
+                etype: ElementType::StructureType,
+                children: vec![
+                    Rc::new(RefCell::new(Element{
+                        value: String::from("boxxy"),
+                        etype: ElementType::StringType,
+                        children: vec![],
+                        attributes: vec![],
+                    })),
+                    Rc::new(RefCell::new(Element{
+                        value: String::new(),
+                        etype: ElementType::StructureType,
+                        children: vec![
+                            Rc::new(RefCell::new(Element{
+                                value: String::from("bob"),
+                                etype: ElementType::StringType,
+                                children: vec![],
+                                attributes: vec![],
+                            }))
+                        ],
+                        attributes: vec![
+                            (String::from("type"), String::from("participant")),
+                            (String::from("alias"), String::from("bob")),
+                        ]
+                    })) 
+                ],
+                attributes: vec![
+                    (String::from("type"), String::from("box")),
+                ]
+            }))        
+        ];
+        assert_eq!(parser.header, expected);
+    }
+
+    #[test]
+    fn test_int_sequenceparser_box3() {
+        let mut parser = SequenceDiagramParser::new();
+
+        {
+            let mut slice = SliceWithContext::new_for_tests(&"box \"boxxy\"");
+            let returned = parser.step(&mut slice);
+        }
+        {
+            let mut slice = SliceWithContext::new_for_tests(&"end box");
+            let returned = parser.step(&mut slice);
+        }
+        {
+            let mut slice = SliceWithContext::new_for_tests(&"participant bob");
+            let returned = parser.step(&mut slice);
+        }
+        assert_eq!(parser.header.len(), 2);
+
+        let expected:Vec<Rc<RefCell<Element>>>=vec![
+            Rc::new(RefCell::new(Element{
+                value: String::new(),
+                etype: ElementType::StructureType,
+                children: vec![
+                    Rc::new(RefCell::new(Element{
+                        value: String::from("boxxy"),
+                        etype: ElementType::StringType,
+                        children: vec![],
+                        attributes: vec![],
+                    })),
+                ],
+                attributes: vec![
+                    (String::from("type"), String::from("box")),
+                ]
+            })),
+            Rc::new(RefCell::new(Element{
+                value: String::new(),
+                etype: ElementType::StructureType,
+                children: vec![
+                    Rc::new(RefCell::new(Element{
+                        value: String::from("bob"),
+                        etype: ElementType::StringType,
+                        children: vec![],
+                        attributes: vec![],
+                    }))
+                ],
+                attributes: vec![
+                    (String::from("type"), String::from("participant")),
+                    (String::from("alias"), String::from("bob")),
+                ]
+            }))         
+        ];
+        assert_eq!(parser.header, expected);
+    }
+
+    // And now for some external tests
 }
