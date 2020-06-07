@@ -42,6 +42,14 @@ impl Element {
             children:vec![],
             attributes:vec![],
         }
+    }
+    pub fn new_string(text: String) -> Element{
+        Element {
+            value: text,
+            etype: ElementType::StringType,
+            children:vec![],
+            attributes:vec![],
+        }
     } 
 }
 

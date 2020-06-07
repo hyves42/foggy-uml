@@ -4,7 +4,7 @@ use parsers::datatypes::{ElementType, Element, Document, Parser, ParserResult};
 use parsers::stringparser::StringParser;
 use datatypes::{SliceWithContext};
 use parseutils::*;
-
+use parsers::stringparseutils::*;
 
 
 //elements: 
@@ -176,61 +176,19 @@ impl SequenceDiagramParser {
         return Ok(());
     }
 
-    // TODO doesn't handle markdown formatters in name string
+    // TODO doesn't handle markdown formatters in name string yet
     fn  consume_participant_name (input: &str)->Result<(&str, Rc<RefCell<Element>>), String>{
-        if StringParser::is_start_word(&input){
-            // Read name as a string
-
-            // TODO Not very happy about his kludge. It works but ... meh
-            // For some reason the borrow checker is particularly unhappy if I feed input 
-            // directly to the stringparser, I can't get it back after that
-            // workaround: extract just the good slice and fake the slicewithcontext information...
-            let (remaining, start_token) = consume_token_in_list(input, StringParser::get_start_words()).unwrap();
-            let escaped_token=format!("\\{}", start_token);
-            let stop_tokens=[escaped_token.as_str(), start_token]; //order is important
-            let mut collector = String::from(start_token);
-            let mut new_slice = remaining;
-            let mut slice_to_return=input;
-            loop{
-                {
-                    let (rem, consumed) = consume_until_token_in_list(new_slice, &stop_tokens).unwrap();
-                    new_slice=rem;
-                    collector.push_str(consumed);
-                }
-                {
-                    let (rem, consumed) = consume_token_in_list(new_slice, &stop_tokens).unwrap();
-                    new_slice=rem;
-                    collector.push_str(consumed);
-                    if (consumed==start_token){
-                        slice_to_return = rem;
-                        break;
-                    }
+        let string_tokens=["\"", "'"];
+        if starts_with_token(input, &string_tokens){
+            // Read participant name as a string
+            match consume_between_tokens(input, &string_tokens){
+                Err(_)=> return Err(String::from("unfinished string")),
+                Ok((remaining, str_content, offset)) => {
+                    let (_, string) = unescape_to_string(str_content);
+                    let element = Element::new_string(string);
+                    return Ok((remaining, Rc::new(RefCell::new(element))));
                 }
             }
-
-            // Now 'collector' is a string that contains exactly the string to parse, with start and stop tokens
-            let mut parser = StringParser::new();
-            let mut slice = SliceWithContext{
-                slice: collector.as_str(),
-                line: 0,
-                pos: 0,
-                file_name: Rc::new(String::new()),
-            };
-            let mut new_slice:&str=&"";
-
-            let res = parser.step(&mut slice);
-            match res{
-                Err((_, s))=> return Err(s),
-                Ok(r) => match r {
-                    ParserResult::Done(slice_ctx) => {
-                        new_slice = slice_ctx.slice;
-                    },
-                    _ => return Err(String::from("unfinished string")),
-                }
-            }
-            let (elements, documents) = parser.flush();
-            return Ok((slice_to_return, Rc::clone(elements.first().unwrap())));
-
         }
         else{
             // read participant name as a simple slice
