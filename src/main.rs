@@ -4,6 +4,7 @@ mod datatypes;
 mod parsers;
 mod parseutils;
 mod preprocessor;
+extern crate maplit;
 
 
 // For testing
