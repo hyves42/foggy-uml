@@ -1,11 +1,7 @@
 use std::rc::Rc;
-
-
 use parsers::datatypes::{ElementType, Element, Document, Parser, ParserResult};
 use parsers::stringparser::StringParser;
 use datatypes::{LineWithContext, SliceWithContext};
-use parseutils::*;
-use parsers::*;
 
 
 struct ParserCombinator {}

@@ -1,7 +1,7 @@
 use std::rc::Rc;
-use std::cell::{RefCell, RefMut, Ref};
+use std::cell::{RefCell};
 use parsers::datatypes::{ElementType, Element, Document, Parser, ParserResult};
-use datatypes::{LineWithContext, SliceWithContext};
+use datatypes::{SliceWithContext};
 use parseutils::*;
 
 #[derive(PartialEq)]
@@ -182,7 +182,7 @@ impl Parser for MarkdownParser{
                 "#" => self.push_title(1),
                 _ => return Err((input, String::from("runtime error, invalid condition"))),
             }
-            let (new_slice, unused) = consume_whitespaces(new_slice);
+            let (new_slice, _) = consume_whitespaces(new_slice);
             slice = new_slice;
         }
         else if slice.trim().len() ==0{
@@ -198,7 +198,7 @@ impl Parser for MarkdownParser{
         while slice.len() > 0 {
             let stop_tokens = ["**", "*", "~~"];
 
-            let (mut new_slice, mut consumed) =
+            let (new_slice, consumed) =
                 consume_until_token_in_list(slice, &stop_tokens).unwrap();
 
 

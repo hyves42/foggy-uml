@@ -32,7 +32,7 @@ pub fn consume_until_token_in_list<'a, 'b>(
 ) -> Result<(&'a str, &'a str), &'a str> {
     let mut iter = input.char_indices();
 
-    while let Some((i, c)) = iter.next() {
+    while let Some((i, _)) = iter.next() {
         for token in tokens {
             if token.len() > 0 && input[i..].starts_with(token) {
                 return Ok((&input[i..], &input[..i]));

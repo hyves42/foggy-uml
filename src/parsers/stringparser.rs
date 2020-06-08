@@ -1,9 +1,8 @@
 use std::rc::Rc;
-use std::cell::{RefCell, RefMut, Ref};
+use std::cell::{RefCell};
 use datatypes::SliceWithContext;
 use parsers::datatypes::{ElementType, Element, Document, Parser, ParserResult};
 use parseutils::*;
-use parsers;
 
 pub struct StringParser {
     collec: Option<String>,
@@ -17,7 +16,7 @@ impl StringParser {
         }
     }
 
-    fn is_start_word(input: &str) -> bool {
+    fn is_start_word(_input: &str) -> bool {
         return false;
     }
     fn get_start_words() -> &'static [&'static str] {
@@ -47,14 +46,14 @@ impl Parser for StringParser {
                     self.start_token.push_str(token);
                     slice = new_slice;
                 }
-                Err(new_slice) => return Err((input, String::from("Invalid string start token"))),
+                Err(_) => return Err((input, String::from("Invalid string start token"))),
             }
         }
 
         while slice.len() > 0 {
             let stop_tokens = ["\\", &self.start_token.as_str()];
 
-            let (mut new_slice, mut consumed) =
+            let (new_slice, consumed) =
                 consume_until_token_in_list(slice, &stop_tokens).unwrap();
             self.collec.as_mut().unwrap().push_str(consumed);
             slice = new_slice;

@@ -1,7 +1,6 @@
 use std::rc::Rc;
-use std::cell::{RefCell, RefMut, Ref};
-use datatypes::{LineWithContext, SliceWithContext};
-use parseutils::*;
+use std::cell::{RefCell};
+use datatypes::{SliceWithContext};
 
 
 
@@ -9,7 +8,7 @@ use parseutils::*;
 #[derive(PartialEq)]
 pub enum ElementType {
     StringType,    // element contains text
-    TokenType,     // for code struct ??
+    //TokenType,     // for code struct ??
     StructureType, // just tree structure
 }
 
