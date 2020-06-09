@@ -120,6 +120,7 @@ struct SequenceDiagramParser {
     sequence: Vec<Rc<RefCell<Element>>>,
     state: SequenceDiagramParserState,
     open_header_tokens: Vec<(Rc<RefCell<Element>>, HDCloseCondition)>,
+    participants_map: std::collections::HashMap<String, Rc<RefCell<Element>>>, 
 }
 
 
@@ -132,6 +133,8 @@ impl SequenceDiagramParser {
             sequence: vec![],
             state: SequenceDiagramParserState::Header,
             open_header_tokens: vec![],
+            participants_map: HashMap::new(), 
+
         }
     }
 
@@ -612,17 +615,42 @@ impl SequenceDiagramParser {
     }
 
 
+
     fn create_participant_if_needed(&mut self, name: &str){
-        //TODO
+        if !self.participants_map.contains_key(&String::from(name)){
 
-
-
+            let name_element=Rc::new(RefCell::new(Element::new_str(name)));
+            // Build participant element ans push it to header
+            let mut header_element = Element::new();
+            header_element.attributes.push((String::from("type"), String::from("participant")));
+            header_element.children.push(Rc::clone(&name_element));
+            header_element.attributes.push((String::from("alias"), String::from(name)));
+            self.push_to_header(Rc::new(RefCell::new(header_element)));
+        }
     }
 
     fn push_to_header(&mut self, element:Rc<RefCell<Element>>){
         match self.open_header_tokens.last() {
-            Some((ptr,_)) => ptr.borrow_mut().children.push(element),
-            None => self.header.push(element),
+            Some((ptr,_)) => ptr.borrow_mut().children.push(Rc::clone(&element)),
+            None => self.header.push(Rc::clone(&element)),
+        }
+
+        //keep track of participants for future queries
+        let mut name= String::new();
+        let mut participant=true;
+        {
+            let elt=element.borrow();
+            for (k,v) in &elt.attributes{
+                if k == "alias"{
+                    name.push_str(v);
+                }
+                if k == "type" && v == "box"{
+                    participant = false;
+                }
+            }
+        }
+        if participant{
+            self.participants_map.insert(name, Rc::clone(&element));
         }
     }
 
@@ -1027,6 +1055,53 @@ mod tests {
             }))         
         ];
         assert_eq!(parser.header, expected);
+    }
+
+    #[test]
+    fn test_int_sequenceparser_message1() {
+        let mut parser = SequenceDiagramParser::new();
+
+        {
+            let mut slice = SliceWithContext::new_for_tests(&"entity bob");
+            let returned = parser.step(&mut slice);
+        }
+        {
+            let mut slice = SliceWithContext::new_for_tests(&"alice->bob");
+            let returned = parser.step(&mut slice);
+        }
+        {
+            let mut slice = SliceWithContext::new_for_tests(&"alice<-bob");
+            let returned = parser.step(&mut slice);
+        }
+
+        let expected:Vec<Rc<RefCell<Element>>>=vec![
+            Rc::new(RefCell::new(Element{
+                value: String::new(),
+                etype: ElementType::StructureType,
+                children: vec![],
+                attributes: vec![
+                    (String::from("origin"), String::from("alice")),
+                    (String::from("target"), String::from("bob")),
+                    (String::from("line-style"), String::from("normal")),
+                    (String::from("arrow-style"), String::from("normal")),
+                ]
+            })),
+            Rc::new(RefCell::new(Element{
+                value: String::new(),
+                etype: ElementType::StructureType,
+                children: vec![],
+                attributes: vec![
+                    (String::from("target"), String::from("alice")),
+                    (String::from("origin"), String::from("bob")),
+                    (String::from("line-style"), String::from("normal")),
+                    (String::from("arrow-style"), String::from("normal")),
+                ]
+            })),
+        ];
+        assert_eq!(parser.sequence, expected);
+
+
+        assert_eq!(parser.header.len(), 2);
     }
 
     // And now for some external tests
