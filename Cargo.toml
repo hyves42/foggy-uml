@@ -5,3 +5,5 @@ authors = ["yves"]
 
 [dependencies]
 maplit = "1.0.2"
+simple-xml-builder = "1.0.0"
+

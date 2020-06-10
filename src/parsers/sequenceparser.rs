@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use std::cell::{RefCell};
-use parsers::datatypes::{ElementType, Element, Document, Parser, ParserResult};
-use datatypes::{SliceWithContext};
+use datatypes::{SliceWithContext, ElementType, Element, Document};
+use parsers::datatypes::{Parser, ParserResult};
 use parseutils::*;
 use parsers::stringparseutils::*;
 use std::collections::HashMap;
@@ -703,6 +703,9 @@ impl Parser for SequenceDiagramParser{
                     "show" => return Err((input, String::from("runtime error, invalid condition"))),
                     _ => return Err((input, String::from("runtime error, invalid condition"))),
                 }
+                //TODO make it better
+                input.slice=&input.slice[..0];
+                return Ok(ParserResult::Partial(input));
 
             }
             else {
@@ -722,58 +725,24 @@ impl Parser for SequenceDiagramParser{
         else{
             self.add_message(slice);
         }
-
-
-        //while slice.len() > 0 {
-            // let stop_tokens = ["**", "*", "~~"];
-
-            // let (mut new_slice, mut consumed) =
-            //     consume_until_token_in_list(slice, &stop_tokens).unwrap();
-
-
-            // // If no existing container to store this text create a paragraph
-            // if self.open_tokens.len()==0{
-            //     self.push_paragraph();
-            // }
-
-            // self.collec.as_mut().unwrap().push_str(consumed);
-            // slice = new_slice;
-
-            // if new_slice.len() == 0 {
-            //     break;
-            // }
-
-            // // consume the token that stopped us
-            // let (new_slice, consumed) = consume_token_in_list(new_slice, &stop_tokens).unwrap();
-            // // are we closing something this this token ?
-            // let condition=MDCloseCondition::Token(consumed.to_string());
-            // if self.is_close_condition(&condition){
-            //     self.collect_all_open_tokens_until_cond(&condition);
-            // }
-            // else{
-            //     match consumed{
-            //         "**" => self.push_formatter("**", "bold"),
-            //         "*" => self.push_formatter("*", "italic"),
-            //         "~~" => self.push_formatter("~~", "strikethrough"),
-            //         _ => return Err((
-            //             input,
-            //             String::from("runtime error, met unexpected token"),
-            //         )) // no other token apart from those in stop_tokens array shall be consumed
-            //     }
-            // }
-            // slice=new_slice;
-        //}
-
-
-        // Full line was consumed
-
-        // check for this close condition
  
         return Ok(ParserResult::Partial(input));
     }
 
     fn flush(&mut self) -> (Vec<Rc<RefCell<Element>>>, Vec<Rc<RefCell<Document>>>){
-        return (vec![], vec![]);
+        let mut header_element = Element::new();
+        let mut content_element = Element::new();
+
+        header_element.attributes.push((String::from("type"), String::from("sequencediagram:header")));
+        content_element.attributes.push((String::from("type"), String::from("sequencediagram:content")));
+        for elt in &self.header {
+            header_element.children.push(Rc::clone(&elt));
+        }
+
+        for elt in &self.sequence {
+            content_element.children.push(Rc::clone(&elt));
+        }  
+        return (vec![Rc::new(RefCell::new(header_element)), Rc::new(RefCell::new(content_element))], vec![]);
     }
 }
 
@@ -793,14 +762,16 @@ mod tests {
     // As it is based on a trees/stacks build, 
     // I want to verify my assumptions about the instance internal state
     #[test]
-    fn test_int_sequenceparser_header1() {
+    fn test_sequenceparser_header1() {
         let mut parser = SequenceDiagramParser::new();
 
         let mut slice = SliceWithContext::new_for_tests(&"participant bob");
         let returned = parser.step(&mut slice);
-
         assert!(!returned.is_err());
-        assert_eq!(parser.header.len(), 1);
+
+        let (elements, documents) = parser.flush();
+
+        assert_eq!(elements.len(), 2);
 
         let expected:Vec<Rc<RefCell<Element>>>=vec![
             Rc::new(RefCell::new(Element{
@@ -808,33 +779,45 @@ mod tests {
                 etype: ElementType::StructureType,
                 children: vec![
                     Rc::new(RefCell::new(Element{
-                        value: String::from("bob"),
-                        etype: ElementType::StringType,
-                        children: vec![],
-                        attributes: vec![],
+                        value: String::new(),
+                        etype: ElementType::StructureType,
+                        children: vec![
+                            Rc::new(RefCell::new(Element{
+                                value: String::from("bob"),
+                                etype: ElementType::StringType,
+                                children: vec![],
+                                attributes: vec![],
+                            }))
+                        ],
+                        attributes: vec![
+                            (String::from("type"), String::from("participant")),
+                            (String::from("alias"), String::from("bob")),
+                        ]
                     }))
                 ],
-                attributes: vec![
-                    (String::from("type"), String::from("participant")),
-                    (String::from("alias"), String::from("bob")),
-                ]
+                attributes: vec![(String::from("type"), String::from("sequencediagram:header"))]
+            })),
+            Rc::new(RefCell::new(Element{
+                value: String::new(),
+                etype: ElementType::StructureType,
+                children: vec![],
+                attributes: vec![(String::from("type"), String::from("sequencediagram:content"))]
             }))
-        
         ];
-        assert_eq!(parser.header, expected);
+        assert_eq!(elements, expected);
     }
 
 
     #[test]
-    fn test_int_sequenceparser_header2() {
+    fn test_sequenceparser_header2() {
         let mut parser = SequenceDiagramParser::new();
 
         let mut slice = SliceWithContext::new_for_tests(&"participant bobby as bob");
 
         let returned = parser.step(&mut slice);
-
         assert!(!returned.is_err());
-        assert_eq!(parser.header.len(), 1);
+        let (elements, documents) = parser.flush();
+        assert_eq!(elements.len(), 2);
 
         let expected:Vec<Rc<RefCell<Element>>>=vec![
             Rc::new(RefCell::new(Element{
@@ -842,31 +825,44 @@ mod tests {
                 etype: ElementType::StructureType,
                 children: vec![
                     Rc::new(RefCell::new(Element{
-                        value: String::from("bobby"),
-                        etype: ElementType::StringType,
-                        children: vec![],
-                        attributes: vec![],
-                    }))
+                        value: String::new(),
+                        etype: ElementType::StructureType,
+                        children: vec![
+                            Rc::new(RefCell::new(Element{
+                                value: String::from("bobby"),
+                                etype: ElementType::StringType,
+                                children: vec![],
+                                attributes: vec![],
+                            }))
+                        ],
+                        attributes: vec![
+                            (String::from("type"), String::from("participant")),
+                            (String::from("alias"), String::from("bob")),
+                        ]
+                    }))        
                 ],
-                attributes: vec![
-                    (String::from("type"), String::from("participant")),
-                    (String::from("alias"), String::from("bob")),
-                ]
-            }))        
+                attributes: vec![(String::from("type"), String::from("sequencediagram:header"))]
+            })),
+            Rc::new(RefCell::new(Element{
+                value: String::new(),
+                etype: ElementType::StructureType,
+                children: vec![],
+                attributes: vec![(String::from("type"), String::from("sequencediagram:content"))]
+            }))
         ];
-        assert_eq!(parser.header, expected);
+        assert_eq!(elements, expected);
     }
 
     #[test]
-    fn test_int_sequenceparser_header3() {
+    fn test_sequenceparser_header3() {
         let mut parser = SequenceDiagramParser::new();
 
         let mut slice = SliceWithContext::new_for_tests(&"participant \"bobby the 🐶\" as bob");
 
         let returned = parser.step(&mut slice);
-
         assert!(!returned.is_err());
-        assert_eq!(parser.header.len(), 1);
+        let (elements, documents) = parser.flush();
+        assert_eq!(elements.len(), 2);
 
         let expected:Vec<Rc<RefCell<Element>>>=vec![
             Rc::new(RefCell::new(Element{
@@ -874,31 +870,44 @@ mod tests {
                 etype: ElementType::StructureType,
                 children: vec![
                     Rc::new(RefCell::new(Element{
-                        value: String::from("bobby the 🐶"),
-                        etype: ElementType::StringType,
-                        children: vec![],
-                        attributes: vec![],
-                    }))
+                        value: String::new(),
+                        etype: ElementType::StructureType,
+                        children: vec![
+                            Rc::new(RefCell::new(Element{
+                                value: String::from("bobby the 🐶"),
+                                etype: ElementType::StringType,
+                                children: vec![],
+                                attributes: vec![],
+                            }))
+                        ],
+                        attributes: vec![
+                            (String::from("type"), String::from("participant")),
+                            (String::from("alias"), String::from("bob")),
+                        ]
+                    }))        
                 ],
-                attributes: vec![
-                    (String::from("type"), String::from("participant")),
-                    (String::from("alias"), String::from("bob")),
-                ]
-            }))        
+                attributes: vec![(String::from("type"), String::from("sequencediagram:header"))]
+            })),
+            Rc::new(RefCell::new(Element{
+                value: String::new(),
+                etype: ElementType::StructureType,
+                children: vec![],
+                attributes: vec![(String::from("type"), String::from("sequencediagram:content"))]
+            }))
         ];
-        assert_eq!(parser.header, expected);
+        assert_eq!(elements, expected);
     }
 
     #[test]
-    fn test_int_sequenceparser_header4() {
+    fn test_sequenceparser_header4() {
         let mut parser = SequenceDiagramParser::new();
 
         let mut slice = SliceWithContext::new_for_tests(&"actor \"bobby the 🐶\" as bob");
 
         let returned = parser.step(&mut slice);
-
         assert!(!returned.is_err());
-        assert_eq!(parser.header.len(), 1);
+        let (elements, documents) = parser.flush();
+        assert_eq!(elements.len(), 2);
 
         let expected:Vec<Rc<RefCell<Element>>>=vec![
             Rc::new(RefCell::new(Element{
@@ -906,24 +915,37 @@ mod tests {
                 etype: ElementType::StructureType,
                 children: vec![
                     Rc::new(RefCell::new(Element{
-                        value: String::from("bobby the 🐶"),
-                        etype: ElementType::StringType,
-                        children: vec![],
-                        attributes: vec![],
+                        value: String::new(),
+                        etype: ElementType::StructureType,
+                        children: vec![
+                            Rc::new(RefCell::new(Element{
+                                value: String::from("bobby the 🐶"),
+                                etype: ElementType::StringType,
+                                children: vec![],
+                                attributes: vec![],
+                            }))
+                        ],
+                        attributes: vec![
+                            (String::from("type"), String::from("actor")),
+                            (String::from("alias"), String::from("bob")),
+                        ]
                     }))
                 ],
-                attributes: vec![
-                    (String::from("type"), String::from("actor")),
-                    (String::from("alias"), String::from("bob")),
-                ]
+                attributes: vec![(String::from("type"), String::from("sequencediagram:header"))]
+            })),
+            Rc::new(RefCell::new(Element{
+                value: String::new(),
+                etype: ElementType::StructureType,
+                children: vec![],
+                attributes: vec![(String::from("type"), String::from("sequencediagram:content"))]
             }))
         ];
-        assert_eq!(parser.header, expected);
+        assert_eq!(elements, expected);
     }
 
 
     #[test]
-    fn test_int_sequenceparser_box1() {
+    fn test_sequenceparser_box1() {
         let mut parser = SequenceDiagramParser::new();
 
         let mut slice = SliceWithContext::new_for_tests(&"box \"boxxy\"");
@@ -931,7 +953,8 @@ mod tests {
         let returned = parser.step(&mut slice);
 
         assert!(!returned.is_err());
-        assert_eq!(parser.header.len(), 1);
+        let (elements, documents) = parser.flush();
+        assert_eq!(elements.len(), 2);
 
         let expected:Vec<Rc<RefCell<Element>>>=vec![
             Rc::new(RefCell::new(Element{
@@ -939,33 +962,49 @@ mod tests {
                 etype: ElementType::StructureType,
                 children: vec![
                     Rc::new(RefCell::new(Element{
-                        value: String::from("boxxy"),
-                        etype: ElementType::StringType,
-                        children: vec![],
-                        attributes: vec![],
-                    }))
+                        value: String::new(),
+                        etype: ElementType::StructureType,
+                        children: vec![
+                            Rc::new(RefCell::new(Element{
+                                value: String::from("boxxy"),
+                                etype: ElementType::StringType,
+                                children: vec![],
+                                attributes: vec![],
+                            }))
+                        ],
+                        attributes: vec![
+                            (String::from("type"), String::from("box")),
+                        ]
+                    }))        
                 ],
-                attributes: vec![
-                    (String::from("type"), String::from("box")),
-                ]
-            }))        
+                attributes: vec![(String::from("type"), String::from("sequencediagram:header"))]
+            })),
+            Rc::new(RefCell::new(Element{
+                value: String::new(),
+                etype: ElementType::StructureType,
+                children: vec![],
+                attributes: vec![(String::from("type"), String::from("sequencediagram:content"))]
+            }))
         ];
-        assert_eq!(parser.header, expected);
+        assert_eq!(elements, expected);
     }
 
     #[test]
-    fn test_int_sequenceparser_box2() {
+    fn test_sequenceparser_box2() {
         let mut parser = SequenceDiagramParser::new();
 
         {
             let mut slice = SliceWithContext::new_for_tests(&"box \"boxxy\"");
             let returned = parser.step(&mut slice);
+            assert!(!returned.is_err());
         }
         {
             let mut slice = SliceWithContext::new_for_tests(&"participant bob");
             let returned = parser.step(&mut slice);
+            assert!(!returned.is_err());
         }
-        assert_eq!(parser.header.len(), 1);
+        let (elements, documents) = parser.flush();
+        assert_eq!(elements.len(), 2);
 
         let expected:Vec<Rc<RefCell<Element>>>=vec![
             Rc::new(RefCell::new(Element{
@@ -973,10 +1012,90 @@ mod tests {
                 etype: ElementType::StructureType,
                 children: vec![
                     Rc::new(RefCell::new(Element{
-                        value: String::from("boxxy"),
-                        etype: ElementType::StringType,
-                        children: vec![],
-                        attributes: vec![],
+                        value: String::new(),
+                        etype: ElementType::StructureType,
+                        children: vec![
+                            Rc::new(RefCell::new(Element{
+                                value: String::from("boxxy"),
+                                etype: ElementType::StringType,
+                                children: vec![],
+                                attributes: vec![],
+                            })),
+                            Rc::new(RefCell::new(Element{
+                                value: String::new(),
+                                etype: ElementType::StructureType,
+                                children: vec![
+                                    Rc::new(RefCell::new(Element{
+                                        value: String::from("bob"),
+                                        etype: ElementType::StringType,
+                                        children: vec![],
+                                        attributes: vec![],
+                                    }))
+                                ],
+                                attributes: vec![
+                                    (String::from("type"), String::from("participant")),
+                                    (String::from("alias"), String::from("bob")),
+                                ]
+                            })) 
+                        ],
+                        attributes: vec![
+                            (String::from("type"), String::from("box")),
+                        ]
+                    }))        
+                ],
+                attributes: vec![(String::from("type"), String::from("sequencediagram:header"))]
+            })),
+            Rc::new(RefCell::new(Element{
+                value: String::new(),
+                etype: ElementType::StructureType,
+                children: vec![],
+                attributes: vec![(String::from("type"), String::from("sequencediagram:content"))]
+            }))
+        ];
+        assert_eq!(elements, expected);
+    }
+
+    #[test]
+    fn test_sequenceparser_box3() {
+        let mut parser = SequenceDiagramParser::new();
+
+        {
+            let mut slice = SliceWithContext::new_for_tests(&"box \"boxxy\"");
+            let returned = parser.step(&mut slice);
+            assert!(!returned.is_err());
+        }
+        {
+            let mut slice = SliceWithContext::new_for_tests(&"end box");
+            let returned = parser.step(&mut slice);
+            assert!(!returned.is_err());
+        }
+        {
+            let mut slice = SliceWithContext::new_for_tests(&"participant bob");
+            let returned = parser.step(&mut slice);
+            assert!(!returned.is_err());
+        }
+        let (elements, documents) = parser.flush();
+        assert_eq!(elements.len(), 2);
+
+        let expected:Vec<Rc<RefCell<Element>>>=vec![
+            Rc::new(RefCell::new(Element{
+                value: String::new(),
+                etype: ElementType::StructureType,
+                children: vec![
+                    Rc::new(RefCell::new(Element{
+                        value: String::new(),
+                        etype: ElementType::StructureType,
+                        children: vec![
+                            Rc::new(RefCell::new(Element{
+                                value: String::from("boxxy"),
+                                etype: ElementType::StringType,
+                                children: vec![],
+                                attributes: vec![],
+                            })),
+                        ],
+                        attributes: vec![
+                            (String::from("type"), String::from("box")),
+                        ]
                     })),
                     Rc::new(RefCell::new(Element{
                         value: String::new(),
@@ -993,115 +1112,110 @@ mod tests {
                             (String::from("type"), String::from("participant")),
                             (String::from("alias"), String::from("bob")),
                         ]
-                    })) 
+                    }))         
                 ],
-                attributes: vec![
-                    (String::from("type"), String::from("box")),
-                ]
-            }))        
-        ];
-        assert_eq!(parser.header, expected);
-    }
-
-    #[test]
-    fn test_int_sequenceparser_box3() {
-        let mut parser = SequenceDiagramParser::new();
-
-        {
-            let mut slice = SliceWithContext::new_for_tests(&"box \"boxxy\"");
-            let returned = parser.step(&mut slice);
-        }
-        {
-            let mut slice = SliceWithContext::new_for_tests(&"end box");
-            let returned = parser.step(&mut slice);
-        }
-        {
-            let mut slice = SliceWithContext::new_for_tests(&"participant bob");
-            let returned = parser.step(&mut slice);
-        }
-        assert_eq!(parser.header.len(), 2);
-
-        let expected:Vec<Rc<RefCell<Element>>>=vec![
-            Rc::new(RefCell::new(Element{
-                value: String::new(),
-                etype: ElementType::StructureType,
-                children: vec![
-                    Rc::new(RefCell::new(Element{
-                        value: String::from("boxxy"),
-                        etype: ElementType::StringType,
-                        children: vec![],
-                        attributes: vec![],
-                    })),
-                ],
-                attributes: vec![
-                    (String::from("type"), String::from("box")),
-                ]
+                attributes: vec![(String::from("type"), String::from("sequencediagram:header"))]
             })),
             Rc::new(RefCell::new(Element{
                 value: String::new(),
                 etype: ElementType::StructureType,
-                children: vec![
-                    Rc::new(RefCell::new(Element{
-                        value: String::from("bob"),
-                        etype: ElementType::StringType,
-                        children: vec![],
-                        attributes: vec![],
-                    }))
-                ],
-                attributes: vec![
-                    (String::from("type"), String::from("participant")),
-                    (String::from("alias"), String::from("bob")),
-                ]
-            }))         
+                children: vec![],
+                attributes: vec![(String::from("type"), String::from("sequencediagram:content"))]
+            }))
         ];
-        assert_eq!(parser.header, expected);
+        assert_eq!(elements, expected);
     }
 
     #[test]
-    fn test_int_sequenceparser_message1() {
+    fn test_sequenceparser_message1() {
         let mut parser = SequenceDiagramParser::new();
 
         {
-            let mut slice = SliceWithContext::new_for_tests(&"entity bob");
-            let returned = parser.step(&mut slice);
-        }
-        {
             let mut slice = SliceWithContext::new_for_tests(&"alice->bob");
             let returned = parser.step(&mut slice);
+            assert!(!returned.is_err());
         }
         {
             let mut slice = SliceWithContext::new_for_tests(&"alice<-bob");
             let returned = parser.step(&mut slice);
+            assert!(!returned.is_err());
         }
+
+        let (elements, documents) = parser.flush();
+        assert_eq!(elements.len(), 2);
 
         let expected:Vec<Rc<RefCell<Element>>>=vec![
             Rc::new(RefCell::new(Element{
                 value: String::new(),
                 etype: ElementType::StructureType,
-                children: vec![],
-                attributes: vec![
-                    (String::from("origin"), String::from("alice")),
-                    (String::from("target"), String::from("bob")),
-                    (String::from("line-style"), String::from("normal")),
-                    (String::from("arrow-style"), String::from("normal")),
-                ]
+                children: vec![
+                    Rc::new(RefCell::new(Element{
+                        value: String::new(),
+                        etype: ElementType::StructureType,
+                        children: vec![
+                            Rc::new(RefCell::new(Element{
+                                value: String::from("alice"),
+                                etype: ElementType::StringType,
+                                children: vec![],
+                                attributes: vec![],
+                            }))
+                        ],
+                        attributes: vec![
+                            (String::from("type"), String::from("participant")),
+                            (String::from("alias"), String::from("alice")),
+                        ]
+                    })),
+                    Rc::new(RefCell::new(Element{
+                        value: String::new(),
+                        etype: ElementType::StructureType,
+                        children: vec![
+                            Rc::new(RefCell::new(Element{
+                                value: String::from("bob"),
+                                etype: ElementType::StringType,
+                                children: vec![],
+                                attributes: vec![],
+                            }))
+                        ],
+                        attributes: vec![
+                            (String::from("type"), String::from("participant")),
+                            (String::from("alias"), String::from("bob")),
+                        ]
+                    }))
+                ],
+                attributes: vec![(String::from("type"), String::from("sequencediagram:header"))]
             })),
             Rc::new(RefCell::new(Element{
                 value: String::new(),
                 etype: ElementType::StructureType,
-                children: vec![],
-                attributes: vec![
-                    (String::from("target"), String::from("alice")),
-                    (String::from("origin"), String::from("bob")),
-                    (String::from("line-style"), String::from("normal")),
-                    (String::from("arrow-style"), String::from("normal")),
-                ]
-            })),
+                children: vec![
+                    Rc::new(RefCell::new(Element{
+                        value: String::new(),
+                        etype: ElementType::StructureType,
+                        children: vec![],
+                        attributes: vec![
+                            (String::from("origin"), String::from("alice")),
+                            (String::from("target"), String::from("bob")),
+                            (String::from("line-style"), String::from("normal")),
+                            (String::from("arrow-style"), String::from("normal")),
+                        ]
+                    })),
+                    Rc::new(RefCell::new(Element{
+                        value: String::new(),
+                        etype: ElementType::StructureType,
+                        children: vec![],
+                        attributes: vec![
+                            (String::from("target"), String::from("alice")),
+                            (String::from("origin"), String::from("bob")),
+                            (String::from("line-style"), String::from("normal")),
+                            (String::from("arrow-style"), String::from("normal")),
+                        ]
+                    })),
+                ],
+                attributes: vec![(String::from("type"), String::from("sequencediagram:content"))]
+            }))
         ];
-        assert_eq!(parser.sequence, expected);
+        assert_eq!(elements, expected);
 
-
-        assert_eq!(parser.header.len(), 2);
     }
 
     // And now for some external tests

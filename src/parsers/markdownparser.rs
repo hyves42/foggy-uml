@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use std::cell::{RefCell};
-use parsers::datatypes::{ElementType, Element, Document, Parser, ParserResult};
-use datatypes::{SliceWithContext};
+use datatypes::{SliceWithContext, ElementType, Element, Document};
+use parsers::datatypes::{Parser, ParserResult};
 use parseutils::*;
 
 #[derive(PartialEq)]

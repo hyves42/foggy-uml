@@ -2,13 +2,18 @@ use std::io::BufRead;
 
 mod datatypes;
 mod parsers;
+mod builders;
 mod parseutils;
 mod preprocessor;
 extern crate maplit;
-
+extern crate simple_xml_builder;
 
 // For testing
 use std::io::Cursor;
+use std::io;
+
+use simple_xml_builder::XMLElement;
+use builders::svgbuilder::*;
 
 // Test
 struct TestDataSource {}
@@ -29,4 +34,9 @@ impl preprocessor::Datasource for TestDataSource {
 fn main() {
     let mut source = TestDataSource {};
     let mut pre = preprocessor::Preprocessor::new(&source, &["utf8", "utf8", "file.fgu"]);
+
+    let mut svg = create_svg(200,200);
+    svg.add_child(create_rect(10.0, 10.0, 10.0, 10.0, &create_style(), Some(1.0), None));
+    svg.write(io::stdout());
+
 }
