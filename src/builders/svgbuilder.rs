@@ -48,12 +48,22 @@ pub fn create_rect(x:f32, y:f32, width:f32, height:f32, style:&str, r:Option<f32
 pub fn create_translate_group(x:f32, y:f32, id:Option<&str>) ->XMLElement{
     //<g transform="translate(0,-97)" id="layer1">
     let mut elt: XMLElement = XMLElement::new("g");
-    elt.add_attribute("height", &format!("translate({:.4}, {:.4})", x, y));
+    elt.add_attribute("transform", &format!("translate({:.4}, {:.4})", x, y));
     if let Some(id)=id{
         elt.add_attribute("id", &id);
     }
     return elt;
 }
+
+pub fn create_group(id:Option<&str>) ->XMLElement{
+    //<g transform="translate(0,-97)" id="layer1">
+    let mut elt: XMLElement = XMLElement::new("g");
+    if let Some(id)=id{
+        elt.add_attribute("id", &id);
+    }
+    return elt;
+}
+
 
 pub fn create_path(d:&str, style:&str, id:Option<&str>) ->XMLElement{
     //  <path

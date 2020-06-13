@@ -460,7 +460,7 @@ impl SequenceDiagramParser {
                 }
             }
             else{
-                // Even 
+                // Even if not a string, it can be escaped
                 let (_, string) = unescape_to_string(slice);
                 arrow_text=Some(string);
             }
@@ -472,6 +472,8 @@ impl SequenceDiagramParser {
         if let Some(text) = arrow_text{
             element.children.push(Rc::new(RefCell::new(Element::new_string(text))));
         }
+
+        element.attributes.push((String::from("type"), String::from("arrow")));
 
         if let Some(name)=left_name{
             self.create_participant_if_needed(name.as_str());
@@ -520,6 +522,7 @@ impl SequenceDiagramParser {
 
 
     fn consume_arrow(input:&str)->Result<(&str, ArrowDirection, ArrowLineType, ArrowType, Option<ArrowDecor>), String>{
+        //TODO find a way to define this map statically and not for each call
         let  map: std::collections::HashMap<&str, (ArrowDirection, ArrowLineType, ArrowType)>= 
             hashmap![
                 "->"     => (ArrowDirection::Right, ArrowLineType::Normal, ArrowType::Normal),
@@ -1193,6 +1196,7 @@ mod tests {
                         etype: ElementType::StructureType,
                         children: vec![],
                         attributes: vec![
+                            (String::from("type"), String::from("arrow")),
                             (String::from("origin"), String::from("alice")),
                             (String::from("target"), String::from("bob")),
                             (String::from("line-style"), String::from("normal")),
@@ -1204,6 +1208,7 @@ mod tests {
                         etype: ElementType::StructureType,
                         children: vec![],
                         attributes: vec![
+                            (String::from("type"), String::from("arrow")),
                             (String::from("target"), String::from("alice")),
                             (String::from("origin"), String::from("bob")),
                             (String::from("line-style"), String::from("normal")),
