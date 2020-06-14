@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use datatypes::*;
 use std::cmp;
 use parseutils::*;
-use simple_xml_builder::XMLElement;
 use builders::svgbuilder::*;
 
 static FONT_SIZE:f32=4.0; // in SVG user coordinates. This is the size from baseline to baseline
@@ -186,7 +185,7 @@ impl SequenceDiagramBuilder{
             }
         );
 
-        let mut xml_stack:Vec<&XMLElement>=vec![];
+        let mut xml_stack:Vec<Rc<RefCell<Element>>>=vec![];
         let mut depth=0;
 
 

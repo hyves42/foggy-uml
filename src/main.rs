@@ -1,4 +1,6 @@
 use std::io::BufRead;
+use std::rc::Rc;
+use std::cell::{RefCell};
 
 mod datatypes;
 mod parsers;
@@ -6,13 +8,12 @@ mod builders;
 mod parseutils;
 mod preprocessor;
 extern crate maplit;
-extern crate simple_xml_builder;
 
 // For testing
 use std::io::Cursor;
 use std::io;
 
-use simple_xml_builder::XMLElement;
+use datatypes::{ElementContent, Element};
 use builders::svgbuilder::*;
 
 // Test
@@ -36,7 +37,7 @@ fn main() {
     let mut pre = preprocessor::Preprocessor::new(&source, &["utf8", "utf8", "file.fgu"]);
 
     let mut svg = create_svg(200,200);
-    svg.add_child(create_rect(10.0, 10.0, 10.0, 10.0, &create_style(), Some(1.0), None));
-    svg.write(io::stdout());
+    svg.push(Rc::new(RefCell::new(create_rect(10.0, 10.0, 10.0, 10.0, "", Some(1.0), None))));
+    println!("svg :\n{:?}", svg.to_xml());
 
 }
