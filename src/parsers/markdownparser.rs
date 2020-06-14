@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use std::cell::{RefCell};
-use datatypes::{SliceWithContext, ElementType, Element, Document};
+use datatypes::{SliceWithContext, ElementContent, Element, Document};
 use parsers::datatypes::{Parser, ParserResult};
 use parseutils::*;
 
@@ -42,12 +42,7 @@ impl MarkdownParser {
     fn new() -> MarkdownParser {
         MarkdownParser {
             collec: Some(String::new()),
-            root: Element {
-                value: String::new(),
-                etype: ElementType::StructureType,
-                children: vec![],
-                attributes: vec![],
-            },
+            root: Element::new("text:body"),
             open_tokens: Vec::new(),
         }
     }
@@ -57,45 +52,29 @@ impl MarkdownParser {
         // So we haver to close any open token that we may have
         self.collect_all_open_tokens();
 
-        let element = Element {
-            value: String::new(),
-            etype: ElementType::StructureType,
-            children: vec![],
-            attributes: vec![
-                (String::from("format"), String::from("title")),
-                (String::from("level"), level.to_string()),
-            ],
-        };
+        let mut element = Element::new("format");
+        element.attributes.push((String::from("format"), String::from("title")));
+        element.attributes.push((String::from("level"), level.to_string()));
+
         let ptr=Rc::new(RefCell::new(element));
-        self.root.children.push(Rc::clone(&ptr));
+        self.root.push(Rc::clone(&ptr));
         self.open_tokens.push((Rc::clone(&ptr), MDCloseCondition::Eol));
     }
 
     fn push_formatter(&mut self, token: &str, format: &str) {
-        let element = Element {
-            value: String::new(),
-            etype: ElementType::StructureType,
-            children: vec![],
-            attributes: vec![
-                (String::from("format"), String::from(format)),
-            ],
-        };
-        let ptr=Rc::new(RefCell::new(element));
+        let mut element = Element::new("format");
+        element.attributes.push((String::from("format"), String::from(format)));
 
+        let ptr=Rc::new(RefCell::new(element));
         self.collect_to_last_leaf();
         self.push_to_last_leaf(Rc::clone(&ptr));
         self.open_tokens.push((Rc::clone(&ptr), MDCloseCondition::Token(String::from(token))));
     }
 
     fn push_paragraph(&mut self) {
-        let element = Element {
-            value: String::new(),
-            etype: ElementType::StructureType,
-            children: vec![],
-            attributes: vec![
-                (String::from("format"), String::from("paragraph")),
-            ],
-        };
+        let mut element = Element::new("format");
+        element.attributes.push((String::from("format"), String::from("paragraph")));
+
         let ptr=Rc::new(RefCell::new(element));
         self.collect_to_last_leaf();
         self.push_to_last_leaf(Rc::clone(&ptr));
@@ -105,8 +84,10 @@ impl MarkdownParser {
 
     fn push_to_last_leaf(&mut self, element:Rc<RefCell<Element>>){
         match self.open_tokens.last() {
-            Some((ptr, _)) => ptr.borrow_mut().children.push(element),
-            None => self.root.children.push(element),
+            // open token, push to last open token
+            Some((ptr, _)) => ptr.borrow_mut().push(element),
+            // No open token, push to root
+            None => self.root.push(element)
         }
     }
 
@@ -116,12 +97,8 @@ impl MarkdownParser {
             return;
         }
 
-        let element= Element {
-            value: self.collec.take().unwrap(),
-            etype: ElementType::StringType,
-            children: vec![],
-            attributes: vec![],
-        };
+        let element = Element::new_string("text", self.collec.take().unwrap());
+
         let ptr=Rc::new(RefCell::new(element));
         self.push_to_last_leaf(Rc::clone(&ptr));
 
@@ -249,7 +226,13 @@ impl Parser for MarkdownParser{
 
     fn flush(&mut self) -> (Vec<Rc<RefCell<Element>>>, Vec<Rc<RefCell<Document>>>) {
         self.collect_all_open_tokens();
-        return (self.root.children.clone(), vec![]);
+        if let ElementContent::Tree(ref children) =self.root.content{
+            return (children.clone(), vec![]);
+        }
+        else{
+            panic!("Root element has the wrong type");
+            return (vec![], vec![]);
+        }
     }
 }
 
@@ -286,20 +269,18 @@ mod tests {
 
         let expected = vec![
             Rc::new(RefCell::new(Element {
-                value: "".to_string(),
-                etype: ElementType::StructureType,
+                tag: "format".to_string(),
+                content: ElementContent::Tree(vec![
+                    Rc::new(RefCell::new(Element {
+                        tag: "text".to_string(),
+                        content: ElementContent::Text("Title".to_string()),
+                        attributes: vec![],
+                    }))
+                ]),
                 attributes: vec![
                     (String::from("format"), String::from("title")),
                     (String::from("level"), "2".to_string()),            
-                ],
-                children: vec![
-                    Rc::new(RefCell::new(Element {
-                        value: "Title".to_string(),
-                        etype: ElementType::StringType,
-                        attributes: vec![],
-                        children: vec![],
-                    }))
-                ],
+                ]
             }))
         ];
 
@@ -353,19 +334,17 @@ mod tests {
 
         let expected = vec![
             Rc::new(RefCell::new(Element {
-                value: "".to_string(),
-                etype: ElementType::StructureType,
+                tag: "format".to_string(),
                 attributes: vec![
                     (String::from("format"), String::from("paragraph")),
                 ],
-                children: vec![
+                content: ElementContent::Tree(vec![
                     Rc::new(RefCell::new(Element {
-                        value: "line 1".to_string(),
-                        etype: ElementType::StringType,
+                        tag: "text".to_string(),
+                        content: ElementContent::Text("line 1".to_string()),
                         attributes: vec![],
-                        children: vec![],
                     }))
-                ]
+                ])
             }))
         ];
         assert_eq!(elements, expected);
@@ -404,19 +383,17 @@ mod tests {
 
         let expected = vec![
             Rc::new(RefCell::new(Element {
-                value: "".to_string(),
-                etype: ElementType::StructureType,
+                tag: "format".to_string(),
                 attributes: vec![
                     (String::from("format"), String::from("paragraph")),
                 ],
-                children: vec![
+                content: ElementContent::Tree(vec![
                     Rc::new(RefCell::new(Element {
-                        value: "line 1line 2".to_string(),
-                        etype: ElementType::StringType,
+                        tag: "text".to_string(),
+                        content: ElementContent::Text("line 1line 2".to_string()),
                         attributes: vec![],
-                        children: vec![],
                     }))
-                ]
+                ])
             }))
         ];
         assert_eq!(elements, expected);
@@ -446,26 +423,23 @@ mod tests {
 
         let expected = vec![
             Rc::new(RefCell::new(Element {
-                value: "".to_string(),
-                etype: ElementType::StructureType,
+                tag: "format".to_string(),
                 attributes: vec![
                     (String::from("format"), String::from("paragraph")),
                 ],
-                children: vec![
+                content: ElementContent::Tree(vec![
                     Rc::new(RefCell::new(Element {
-                        value: "".to_string(),
-                        etype: ElementType::StructureType,
+                        tag: "format".to_string(),
                         attributes: vec![
                             (String::from("format"), String::from("bold")),           
                         ],
-                        children: vec![Rc::new(RefCell::new(Element {
-                            value: "bold".to_string(),
-                            etype: ElementType::StringType,
+                        content: ElementContent::Tree(vec![Rc::new(RefCell::new(Element {
+                            tag: "text".to_string(),
+                            content: ElementContent::Text("bold".to_string()),
                             attributes: vec![],
-                            children: vec![],
-                        }))],
+                        }))]),
                     }))
-                ],
+                ]),
             }))
         ];
 
@@ -495,38 +469,33 @@ mod tests {
 
         let expected = vec![
             Rc::new(RefCell::new(Element {
-                value: "".to_string(),
-                etype: ElementType::StructureType,
+                tag: "format".to_string(),
                 attributes: vec![
                     (String::from("format"), String::from("paragraph")),
                 ],
-                children: vec![
+                content: ElementContent::Tree(vec![
                     Rc::new(RefCell::new(Element {
-                        value: "text1".to_string(),
-                        etype: ElementType::StringType,
+                        tag: "text".to_string(),
+                        content: ElementContent::Text("text1".to_string()),
                         attributes: vec![],
-                        children: vec![],
                     })),
                     Rc::new(RefCell::new(Element {
-                        value: "".to_string(),
-                        etype: ElementType::StructureType,
+                        tag: "format".to_string(),
                         attributes: vec![
                             (String::from("format"), String::from("bold")),           
                         ],
-                        children: vec![Rc::new(RefCell::new(Element {
-                            value: "bald".to_string(),
-                            etype: ElementType::StringType,
+                        content: ElementContent::Tree(vec![Rc::new(RefCell::new(Element {
+                            tag: "text".to_string(),
+                            content: ElementContent::Text("bald".to_string()),
                             attributes: vec![],
-                            children: vec![],
-                        }))],
+                        }))]),
                     })),
                     Rc::new(RefCell::new(Element {
-                        value: "text2".to_string(),
-                        etype: ElementType::StringType,
+                        tag: "text".to_string(),
+                        content: ElementContent::Text("text2".to_string()),
                         attributes: vec![],
-                        children: vec![],
                     }))
-                ]
+                ])
             }))
         ];
 
@@ -567,46 +536,40 @@ mod tests {
 
         let expected = vec![
             Rc::new(RefCell::new(Element {
-                value: "".to_string(),
-                etype: ElementType::StructureType,
+                tag: "format".to_string(),
                 attributes: vec![
                     (String::from("format"), String::from("title")),
                     (String::from("level"), "1".to_string()),            
                 ],
-                children: vec![
+                content: ElementContent::Tree(vec![
                     Rc::new(RefCell::new(Element {
-                        value: "title ".to_string(),
-                        etype: ElementType::StringType,
+                        tag: "text".to_string(),
+                        content: ElementContent::Text("title ".to_string()),
                         attributes: vec![],
-                        children: vec![],
                     })),
                     Rc::new(RefCell::new(Element {
-                        value: "".to_string(),
-                        etype: ElementType::StructureType,
+                        tag: "format".to_string(),
                         attributes: vec![
                             (String::from("format"), String::from("bold")),           
                         ],
-                        children: vec![Rc::new(RefCell::new(Element {
-                            value: "but bold this time".to_string(),
-                            etype: ElementType::StringType,
+                        content: ElementContent::Tree(vec![Rc::new(RefCell::new(Element {
+                            tag: "text".to_string(),
+                            content: ElementContent::Text("but bold this time".to_string()),
                             attributes: vec![],
-                            children: vec![],
-                        }))],
+                        }))]),
                     })),
-                ],
+                ]),
             })),
             Rc::new(RefCell::new(Element {
-                value: "".to_string(),
-                etype: ElementType::StructureType,
+                tag: "format".to_string(),
                 attributes: vec![
                     (String::from("format"), String::from("paragraph")),
                 ],
-                children: vec![Rc::new(RefCell::new(Element {
-                    value: "normal text".to_string(),
-                    etype: ElementType::StringType,
+                content: ElementContent::Tree(vec![Rc::new(RefCell::new(Element {
+                    tag: "text".to_string(),
+                    content: ElementContent::Text("normal text".to_string()),
                     attributes: vec![],
-                    children: vec![],
-                }))],
+                }))]),
             })),
         ];
 

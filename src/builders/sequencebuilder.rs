@@ -58,50 +58,53 @@ impl SequenceDiagramBuilder{
 
     // rule of thumb text size estimation
     pub fn estimate_text_size(element:Rc<RefCell<Element>>)->(f32, f32){
-
-
         let elt = element.borrow();
-        if elt.etype == ElementType::StringType{
-            let mut max_line_width:usize = 0;
-            let mut lines_counter:usize=1;
-
-            let mut slice:&str = &elt.value.as_str();
-
-            while slice.len()>0{
-                {
-                    let (remaining, consumed) = consume_until_token_in_list(slice, &["\n"]).unwrap();
-                    max_line_width = cmp::max(max_line_width, consumed.len());
-                    slice=remaining;
-                }
-                if let Ok((remaining, consumed)) = consume_token_in_list(slice, &["\n"]){
-                    lines_counter += 1;
-                    slice=remaining;
-                }
-
-            }
-            return (max_line_width as f32*CHAR_AVERAGE_RATIO*FONT_SIZE, lines_counter as f32*FONT_INTERLINE);
-        }
-        else{
+        // other elements are not supported yet. 
+        // TODO add support for more complicated text trees with text format
+        if !elt.is_text(){
             return ((0.0, 0.0));
         }
 
-        // other elements are not supported yet. 
-        // TODO add support for more complicated text trees with text format
+        let mut max_line_width:usize = 0;
+        let mut lines_counter:usize=1;
+
+        let text=elt.get_text();
+        let mut slice:&str = &text.as_str();
+
+        while slice.len()>0{
+            {
+                let (remaining, consumed) = consume_until_token_in_list(slice, &["\n"]).unwrap();
+                max_line_width = cmp::max(max_line_width, consumed.len());
+                slice=remaining;
+            }
+            if let Ok((remaining, consumed)) = consume_token_in_list(slice, &["\n"]){
+                lines_counter += 1;
+                slice=remaining;
+            }
+
+        }
+        return (max_line_width as f32*CHAR_AVERAGE_RATIO*FONT_SIZE, lines_counter as f32*FONT_INTERLINE);
     }
+
 
     pub fn estimate_arrow_dimensions(element:Rc<RefCell<Element>>)->(f32, f32){
         let elt = element.borrow();
 
-        if elt.get_attr("type").unwrap_or_default() != "arrow"{
+        if elt.tag != "arrow"{
             return (0.0,0.0);
+            //TODO panic ?
         }
-        match elt.children.first(){ // text is not mandatory on arrows
-            None => return (0.0,0.0),
-            Some(e) =>{
-                let (w, h) = Self::estimate_text_size(Rc::clone(e));
-                return (w+4.0, h+4.0);
+        if let ElementContent::Tree(children) = &elt.content{
+            match children.first(){ // text is not mandatory on arrows
+                None => return (4.0,4.0),
+                Some(e) =>{
+                    let (w, h) = Self::estimate_text_size(Rc::clone(e));
+                    return (w+4.0, h+4.0);
+                }
             }
         }
+        return (0.0,0.0);
+        //TODO panic ?
     }
 
     pub fn generate_svg (&mut self, description: &[Rc<RefCell<Element>>])->Result<String, String>{
@@ -128,8 +131,8 @@ impl SequenceDiagramBuilder{
             |e, d|{
                 let elt = e.borrow();
                 // if element is a participant definition
-                if elt.etype == ElementType::StructureType 
-                    && PARTICIPANTS_TYPES.contains(&elt.get_attr("type").unwrap_or_default().as_str())
+                if elt.is_tree()
+                    && PARTICIPANTS_TYPES.contains(&elt.tag.as_str())
                     && elt.get_attr("alias") != None{
 
                     participants_list.push(Rc::clone(&e));
@@ -146,8 +149,8 @@ impl SequenceDiagramBuilder{
             |e, d|{
                 let elt = e.borrow();
                 // if element is a participant definition
-                if elt.etype == ElementType::StructureType 
-                    && elt.get_attr("type").unwrap_or_default() == "arrow"{
+                if elt.is_tree()
+                    && elt.tag == "arrow"{
                     let origin=elt.get_attr("origin");
                     let target=elt.get_attr("target");
                     if origin==None || target==None{
@@ -190,20 +193,20 @@ impl SequenceDiagramBuilder{
         //2nd pass
         // iteratively build svg content
         // Build header
-        let mut document_root=create_svg(1000, 1000);
-        xml_stack.push(&document_root);
-        {
-            let header=create_group(Some("header"));
-            xml_stack.push(&header);
-            document_root.add_child(header);
-        }
+        // let mut document_root=create_svg(1000, 1000);
+        // xml_stack.push(&document_root);
+        // {
+        //     let header=create_group(Some("header"));
+        //     xml_stack.push(&header);
+        //     document_root.add_child(header);
+        // }
         let mut x = 20.0;
         recurse_element_tree(Rc::clone(&header), 
             |e, d|{
                 let elt = e.borrow();
                 // if element is a participant definition
-                if elt.etype == ElementType::StructureType 
-                    && PARTICIPANTS_TYPES.contains(&elt.get_attr("type").unwrap_or_default().as_str())
+                if elt.is_tree()
+                    && PARTICIPANTS_TYPES.contains(&elt.tag.as_str())
                     && elt.get_attr("alias") != None{
 
                     if let Some ((_, info)) = participants_map.get_mut(&elt.get_attr("alias").unwrap()){
@@ -219,7 +222,7 @@ impl SequenceDiagramBuilder{
                             Some(0.8), None);
 
                         // this one won't hav3e any children so it doesn't need to be pushed to stack
-                        xml_stack.last_mut().unwrap().add_child(rect);
+                        // xml_stack.last_mut().unwrap().add_child(rect);
 
                     }
 

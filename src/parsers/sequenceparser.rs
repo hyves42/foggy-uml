@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use std::cell::{RefCell};
-use datatypes::{SliceWithContext, ElementType, Element, Document};
+use datatypes::{SliceWithContext, ElementContent, Element, Document};
 use parsers::datatypes::{Parser, ParserResult};
 use parseutils::*;
 use parsers::stringparseutils::*;
@@ -138,7 +138,7 @@ impl SequenceDiagramParser {
         }
     }
 
-    fn add_participant<'a>(&mut self, input: &str, def_token: &str)
+    fn add_participant<'a>(&mut self, input: &str, participant_token: &str)
         -> Result<(), String>{
 
         let mut slice=input;
@@ -204,23 +204,23 @@ impl SequenceDiagramParser {
             }
         }
 
-        // Build participant element ans push it to header
-        let mut header_element = Element::new();
-        header_element.attributes.push((String::from("type"), String::from(def_token)));
-        header_element.children.push(name_element.take().unwrap());
+        // Build participant element and push it to header
+        let mut participant_element = Element::new(participant_token);
+
 
         match alias_name{
-            Some(n) => header_element.attributes.push((String::from("alias"), String::from(n))),
-            None => {
-                if let Some(name) = header_element.children.first(){
-                    header_element.attributes.push((String::from("alias"), 
-                        name.borrow().value.clone()));
-                }   
-            } 
-
+            // alias name provided with 'as'
+            Some(n) => participant_element.attributes.push((String::from("alias"), String::from(n))),
+            // no alias name provided, use participant name as alias
+            None => if let Some(elt) = &name_element{
+                participant_element.attributes.push((String::from("alias"), 
+                    elt.borrow().get_text().clone()));
+            }
+                
         }
+        participant_element.push(name_element.take().unwrap());
 
-        self.push_to_header(Rc::new(RefCell::new(header_element)));
+        self.push_to_header(Rc::new(RefCell::new(participant_element)));
         return Ok(());
     }
 
@@ -265,11 +265,10 @@ impl SequenceDiagramParser {
 
 
         // Build box element ans push it to header
-        let mut header_element = Element::new();
-        header_element.attributes.push((String::from("type"), String::from("box")));
-        header_element.children.push(name_element.take().unwrap());
+        let mut box_element = Element::new("box");
+        box_element.push(name_element.take().unwrap());
 
-        let ptr = Rc::new(RefCell::new(header_element));
+        let ptr = Rc::new(RefCell::new(box_element));
         self.push_to_header(Rc::clone(&ptr));
         self.open_header_tokens.push((Rc::clone(&ptr), HDCloseCondition::EndBox));
 
@@ -300,7 +299,7 @@ impl SequenceDiagramParser {
                 Err(_)=> return Err(String::from("unfinished string")),
                 Ok((remaining, str_content, offset)) => {
                     let (_, string) = unescape_to_string(str_content);
-                    let element = Element::new_string(string);
+                    let element = Element::new_string("name", string);
                     return Ok((remaining, Rc::new(RefCell::new(element))));
                 }
             }
@@ -308,7 +307,7 @@ impl SequenceDiagramParser {
         else{
             // read participant name as a simple slice
             if let Ok((remaining, consumed))=consume_until_whitespace(input){
-                let element = Element::new_str(consumed);
+                let element = Element::new_str("name", consumed);
                 return Ok((remaining, Rc::new(RefCell::new(element))));
             }
         }
@@ -468,12 +467,11 @@ impl SequenceDiagramParser {
 
 
         //Now create the connector
-        let mut element:Element =Element::new();
+        let mut element:Element =Element::new("arrow");
         if let Some(text) = arrow_text{
-            element.children.push(Rc::new(RefCell::new(Element::new_string(text))));
+            element.push(Rc::new(RefCell::new(Element::new_string("text", text))));
         }
 
-        element.attributes.push((String::from("type"), String::from("arrow")));
 
         if let Some(name)=left_name{
             self.create_participant_if_needed(name.as_str());
@@ -622,11 +620,10 @@ impl SequenceDiagramParser {
     fn create_participant_if_needed(&mut self, name: &str){
         if !self.participants_map.contains_key(&String::from(name)){
 
-            let name_element=Rc::new(RefCell::new(Element::new_str(name)));
+            let name_element=Rc::new(RefCell::new(Element::new_str("name", name)));
             // Build participant element ans push it to header
-            let mut header_element = Element::new();
-            header_element.attributes.push((String::from("type"), String::from("participant")));
-            header_element.children.push(Rc::clone(&name_element));
+            let mut header_element = Element::new("participant");
+            header_element.push(Rc::clone(&name_element));
             header_element.attributes.push((String::from("alias"), String::from(name)));
             self.push_to_header(Rc::new(RefCell::new(header_element)));
         }
@@ -634,7 +631,7 @@ impl SequenceDiagramParser {
 
     fn push_to_header(&mut self, element:Rc<RefCell<Element>>){
         match self.open_header_tokens.last() {
-            Some((ptr,_)) => ptr.borrow_mut().children.push(Rc::clone(&element)),
+            Some((ptr,_)) => ptr.borrow_mut().push(Rc::clone(&element)),
             None => self.header.push(Rc::clone(&element)),
         }
 
@@ -733,17 +730,15 @@ impl Parser for SequenceDiagramParser{
     }
 
     fn flush(&mut self) -> (Vec<Rc<RefCell<Element>>>, Vec<Rc<RefCell<Document>>>){
-        let mut header_element = Element::new();
-        let mut content_element = Element::new();
+        let mut header_element = Element::new("sequencediagram:header");
+        let mut content_element = Element::new("sequencediagram:content");
 
-        header_element.attributes.push((String::from("type"), String::from("sequencediagram:header")));
-        content_element.attributes.push((String::from("type"), String::from("sequencediagram:content")));
         for elt in &self.header {
-            header_element.children.push(Rc::clone(&elt));
+            header_element.push(Rc::clone(&elt));
         }
 
         for elt in &self.sequence {
-            content_element.children.push(Rc::clone(&elt));
+            content_element.push(Rc::clone(&elt));
         }  
         return (vec![Rc::new(RefCell::new(header_element)), Rc::new(RefCell::new(content_element))], vec![]);
     }
@@ -778,33 +773,28 @@ mod tests {
 
         let expected:Vec<Rc<RefCell<Element>>>=vec![
             Rc::new(RefCell::new(Element{
-                value: String::new(),
-                etype: ElementType::StructureType,
-                children: vec![
+                tag: String::from("sequencediagram:header"),
+                content: ElementContent::Tree(vec![
                     Rc::new(RefCell::new(Element{
-                        value: String::new(),
-                        etype: ElementType::StructureType,
-                        children: vec![
+                        tag: String::from("participant"),
+                        content: ElementContent::Tree(vec![
                             Rc::new(RefCell::new(Element{
-                                value: String::from("bob"),
-                                etype: ElementType::StringType,
-                                children: vec![],
+                                tag: String::from("name"),
+                                content: ElementContent::Text(String::from("bob")),
                                 attributes: vec![],
                             }))
-                        ],
+                        ]),
                         attributes: vec![
-                            (String::from("type"), String::from("participant")),
                             (String::from("alias"), String::from("bob")),
                         ]
                     }))
-                ],
-                attributes: vec![(String::from("type"), String::from("sequencediagram:header"))]
+                ]),
+                attributes: vec![]
             })),
             Rc::new(RefCell::new(Element{
-                value: String::new(),
-                etype: ElementType::StructureType,
-                children: vec![],
-                attributes: vec![(String::from("type"), String::from("sequencediagram:content"))]
+                tag: String::from("sequencediagram:content"),
+                content: ElementContent::Tree(vec![]),
+                attributes: vec![]
             }))
         ];
         assert_eq!(elements, expected);
@@ -824,33 +814,28 @@ mod tests {
 
         let expected:Vec<Rc<RefCell<Element>>>=vec![
             Rc::new(RefCell::new(Element{
-                value: String::new(),
-                etype: ElementType::StructureType,
-                children: vec![
+                tag: String::from("sequencediagram:header"),
+                content: ElementContent::Tree(vec![
                     Rc::new(RefCell::new(Element{
-                        value: String::new(),
-                        etype: ElementType::StructureType,
-                        children: vec![
+                        tag: String::from("participant"),
+                        content: ElementContent::Tree(vec![
                             Rc::new(RefCell::new(Element{
-                                value: String::from("bobby"),
-                                etype: ElementType::StringType,
-                                children: vec![],
+                                tag: String::from("name"),
+                                content: ElementContent::Text(String::from("bobby")),
                                 attributes: vec![],
                             }))
-                        ],
+                        ]),
                         attributes: vec![
-                            (String::from("type"), String::from("participant")),
                             (String::from("alias"), String::from("bob")),
                         ]
                     }))        
-                ],
-                attributes: vec![(String::from("type"), String::from("sequencediagram:header"))]
+                ]),
+                attributes: vec![]
             })),
             Rc::new(RefCell::new(Element{
-                value: String::new(),
-                etype: ElementType::StructureType,
-                children: vec![],
-                attributes: vec![(String::from("type"), String::from("sequencediagram:content"))]
+                tag: String::from("sequencediagram:content"),
+                content: ElementContent::Tree(vec![]),
+                attributes: vec![]
             }))
         ];
         assert_eq!(elements, expected);
@@ -869,33 +854,28 @@ mod tests {
 
         let expected:Vec<Rc<RefCell<Element>>>=vec![
             Rc::new(RefCell::new(Element{
-                value: String::new(),
-                etype: ElementType::StructureType,
-                children: vec![
+                tag: String::from("sequencediagram:header"),
+                content: ElementContent::Tree(vec![
                     Rc::new(RefCell::new(Element{
-                        value: String::new(),
-                        etype: ElementType::StructureType,
-                        children: vec![
+                        tag: String::from("participant"),
+                        content: ElementContent::Tree(vec![
                             Rc::new(RefCell::new(Element{
-                                value: String::from("bobby the 🐶"),
-                                etype: ElementType::StringType,
-                                children: vec![],
+                                tag: String::from("name"),
+                                content: ElementContent::Text(String::from("bobby the 🐶")),
                                 attributes: vec![],
                             }))
-                        ],
+                        ]),
                         attributes: vec![
-                            (String::from("type"), String::from("participant")),
                             (String::from("alias"), String::from("bob")),
                         ]
                     }))        
-                ],
-                attributes: vec![(String::from("type"), String::from("sequencediagram:header"))]
+                ]),
+                attributes: vec![]
             })),
             Rc::new(RefCell::new(Element{
-                value: String::new(),
-                etype: ElementType::StructureType,
-                children: vec![],
-                attributes: vec![(String::from("type"), String::from("sequencediagram:content"))]
+                tag: String::from("sequencediagram:content"),
+                content: ElementContent::Tree(vec![]),
+                attributes: vec![]
             }))
         ];
         assert_eq!(elements, expected);
@@ -914,33 +894,28 @@ mod tests {
 
         let expected:Vec<Rc<RefCell<Element>>>=vec![
             Rc::new(RefCell::new(Element{
-                value: String::new(),
-                etype: ElementType::StructureType,
-                children: vec![
+                tag: String::from("sequencediagram:header"),
+                content: ElementContent::Tree(vec![
                     Rc::new(RefCell::new(Element{
-                        value: String::new(),
-                        etype: ElementType::StructureType,
-                        children: vec![
+                        tag: String::from("actor"),
+                        content: ElementContent::Tree(vec![
                             Rc::new(RefCell::new(Element{
-                                value: String::from("bobby the 🐶"),
-                                etype: ElementType::StringType,
-                                children: vec![],
+                                tag: String::from("name"),
+                                content: ElementContent::Text(String::from("bobby the 🐶")),
                                 attributes: vec![],
                             }))
-                        ],
+                        ]),
                         attributes: vec![
-                            (String::from("type"), String::from("actor")),
                             (String::from("alias"), String::from("bob")),
                         ]
                     }))
-                ],
-                attributes: vec![(String::from("type"), String::from("sequencediagram:header"))]
+                ]),
+                attributes: vec![]
             })),
             Rc::new(RefCell::new(Element{
-                value: String::new(),
-                etype: ElementType::StructureType,
-                children: vec![],
-                attributes: vec![(String::from("type"), String::from("sequencediagram:content"))]
+                tag: String::from("sequencediagram:content"),
+                content: ElementContent::Tree(vec![]),
+                attributes: vec![]
             }))
         ];
         assert_eq!(elements, expected);
@@ -961,32 +936,26 @@ mod tests {
 
         let expected:Vec<Rc<RefCell<Element>>>=vec![
             Rc::new(RefCell::new(Element{
-                value: String::new(),
-                etype: ElementType::StructureType,
-                children: vec![
+                tag: String::from("sequencediagram:header"),
+                content: ElementContent::Tree(vec![
                     Rc::new(RefCell::new(Element{
-                        value: String::new(),
-                        etype: ElementType::StructureType,
-                        children: vec![
+                        tag: String::from("box"),
+                        content: ElementContent::Tree(vec![
                             Rc::new(RefCell::new(Element{
-                                value: String::from("boxxy"),
-                                etype: ElementType::StringType,
-                                children: vec![],
+                                tag: String::from("name"),
+                                content: ElementContent::Text(String::from("boxxy")),
                                 attributes: vec![],
                             }))
-                        ],
-                        attributes: vec![
-                            (String::from("type"), String::from("box")),
-                        ]
+                        ]),
+                        attributes: vec![]
                     }))        
-                ],
-                attributes: vec![(String::from("type"), String::from("sequencediagram:header"))]
+                ]),
+                attributes: vec![]
             })),
             Rc::new(RefCell::new(Element{
-                value: String::new(),
-                etype: ElementType::StructureType,
-                children: vec![],
-                attributes: vec![(String::from("type"), String::from("sequencediagram:content"))]
+                tag: String::from("sequencediagram:content"),
+                content: ElementContent::Tree(vec![]),
+                attributes: vec![]
             }))
         ];
         assert_eq!(elements, expected);
@@ -1011,48 +980,39 @@ mod tests {
 
         let expected:Vec<Rc<RefCell<Element>>>=vec![
             Rc::new(RefCell::new(Element{
-                value: String::new(),
-                etype: ElementType::StructureType,
-                children: vec![
+                tag: String::from("sequencediagram:header"),
+                content: ElementContent::Tree(vec![
                     Rc::new(RefCell::new(Element{
-                        value: String::new(),
-                        etype: ElementType::StructureType,
-                        children: vec![
+                        tag: String::from("box"),
+                        content: ElementContent::Tree(vec![
                             Rc::new(RefCell::new(Element{
-                                value: String::from("boxxy"),
-                                etype: ElementType::StringType,
-                                children: vec![],
+                                tag: String::from("name"),
+                                content: ElementContent::Text(String::from("boxxy")),
                                 attributes: vec![],
                             })),
                             Rc::new(RefCell::new(Element{
-                                value: String::new(),
-                                etype: ElementType::StructureType,
-                                children: vec![
+                                tag: String::from("participant"),
+                                content: ElementContent::Tree(vec![
                                     Rc::new(RefCell::new(Element{
-                                        value: String::from("bob"),
-                                        etype: ElementType::StringType,
-                                        children: vec![],
+                                        tag: String::from("name"),
+                                        content: ElementContent::Text(String::from("bob")),
                                         attributes: vec![],
                                     }))
-                                ],
+                                ]),
                                 attributes: vec![
-                                    (String::from("type"), String::from("participant")),
                                     (String::from("alias"), String::from("bob")),
                                 ]
                             })) 
-                        ],
-                        attributes: vec![
-                            (String::from("type"), String::from("box")),
-                        ]
+                        ]),
+                        attributes: vec![]
                     }))        
-                ],
-                attributes: vec![(String::from("type"), String::from("sequencediagram:header"))]
+                ]),
+                attributes: vec![]
             })),
             Rc::new(RefCell::new(Element{
-                value: String::new(),
-                etype: ElementType::StructureType,
-                children: vec![],
-                attributes: vec![(String::from("type"), String::from("sequencediagram:content"))]
+                tag: String::from("sequencediagram:content"),
+                content: ElementContent::Tree(vec![]),
+                attributes: vec![]
             }))
         ];
         assert_eq!(elements, expected);
@@ -1082,48 +1042,39 @@ mod tests {
 
         let expected:Vec<Rc<RefCell<Element>>>=vec![
             Rc::new(RefCell::new(Element{
-                value: String::new(),
-                etype: ElementType::StructureType,
-                children: vec![
+                tag: String::from("sequencediagram:header"),
+                content: ElementContent::Tree(vec![
                     Rc::new(RefCell::new(Element{
-                        value: String::new(),
-                        etype: ElementType::StructureType,
-                        children: vec![
+                        tag: String::from("box"),
+                        content: ElementContent::Tree(vec![
                             Rc::new(RefCell::new(Element{
-                                value: String::from("boxxy"),
-                                etype: ElementType::StringType,
-                                children: vec![],
+                                tag: String::from("name"),
+                                content: ElementContent::Text(String::from("boxxy")),
                                 attributes: vec![],
                             })),
-                        ],
-                        attributes: vec![
-                            (String::from("type"), String::from("box")),
-                        ]
+                        ]),
+                        attributes: vec![]
                     })),
                     Rc::new(RefCell::new(Element{
-                        value: String::new(),
-                        etype: ElementType::StructureType,
-                        children: vec![
+                        tag: String::from("participant"),
+                        content: ElementContent::Tree(vec![
                             Rc::new(RefCell::new(Element{
-                                value: String::from("bob"),
-                                etype: ElementType::StringType,
-                                children: vec![],
+                                tag: String::from("name"),
+                                content: ElementContent::Text(String::from("bob")),
                                 attributes: vec![],
                             }))
-                        ],
+                        ]),
                         attributes: vec![
-                            (String::from("type"), String::from("participant")),
                             (String::from("alias"), String::from("bob")),
                         ]
                     }))         
-                ],
-                attributes: vec![(String::from("type"), String::from("sequencediagram:header"))]
+                ]),
+                attributes: vec![]
             })),
             Rc::new(RefCell::new(Element{
-                value: String::new(),
-                etype: ElementType::StructureType,
-                children: vec![],
-                attributes: vec![(String::from("type"), String::from("sequencediagram:content"))]
+                tag: String::from("sequencediagram:content"),
+                content: ElementContent::Tree(vec![]),
+                attributes: vec![]
             }))
         ];
         assert_eq!(elements, expected);
@@ -1149,54 +1100,44 @@ mod tests {
 
         let expected:Vec<Rc<RefCell<Element>>>=vec![
             Rc::new(RefCell::new(Element{
-                value: String::new(),
-                etype: ElementType::StructureType,
-                children: vec![
+                tag: String::from("sequencediagram:header"),
+                content: ElementContent::Tree(vec![
                     Rc::new(RefCell::new(Element{
-                        value: String::new(),
-                        etype: ElementType::StructureType,
-                        children: vec![
+                        tag: String::from("participant"),
+                        content: ElementContent::Tree(vec![
                             Rc::new(RefCell::new(Element{
-                                value: String::from("alice"),
-                                etype: ElementType::StringType,
-                                children: vec![],
+                                tag: String::from("name"),
+                                content: ElementContent::Text(String::from("alice")),
                                 attributes: vec![],
                             }))
-                        ],
+                        ]),
                         attributes: vec![
-                            (String::from("type"), String::from("participant")),
                             (String::from("alias"), String::from("alice")),
                         ]
                     })),
                     Rc::new(RefCell::new(Element{
-                        value: String::new(),
-                        etype: ElementType::StructureType,
-                        children: vec![
+                        tag: String::from("participant"),
+                        content: ElementContent::Tree(vec![
                             Rc::new(RefCell::new(Element{
-                                value: String::from("bob"),
-                                etype: ElementType::StringType,
-                                children: vec![],
+                                tag: String::from("name"),
+                                content: ElementContent::Text(String::from("bob")),
                                 attributes: vec![],
                             }))
-                        ],
+                        ]),
                         attributes: vec![
-                            (String::from("type"), String::from("participant")),
                             (String::from("alias"), String::from("bob")),
                         ]
                     }))
-                ],
-                attributes: vec![(String::from("type"), String::from("sequencediagram:header"))]
+                ]),
+                attributes: vec![]
             })),
             Rc::new(RefCell::new(Element{
-                value: String::new(),
-                etype: ElementType::StructureType,
-                children: vec![
+                tag: String::from("sequencediagram:content"),
+                content: ElementContent::Tree(vec![
                     Rc::new(RefCell::new(Element{
-                        value: String::new(),
-                        etype: ElementType::StructureType,
-                        children: vec![],
+                        tag: String::from("arrow"),
+                        content: ElementContent::Tree(vec![]),
                         attributes: vec![
-                            (String::from("type"), String::from("arrow")),
                             (String::from("origin"), String::from("alice")),
                             (String::from("target"), String::from("bob")),
                             (String::from("line-style"), String::from("normal")),
@@ -1204,19 +1145,17 @@ mod tests {
                         ]
                     })),
                     Rc::new(RefCell::new(Element{
-                        value: String::new(),
-                        etype: ElementType::StructureType,
-                        children: vec![],
+                        tag: String::from("arrow"),
+                        content: ElementContent::Tree(vec![]),
                         attributes: vec![
-                            (String::from("type"), String::from("arrow")),
                             (String::from("target"), String::from("alice")),
                             (String::from("origin"), String::from("bob")),
                             (String::from("line-style"), String::from("normal")),
                             (String::from("arrow-style"), String::from("normal")),
                         ]
                     })),
-                ],
-                attributes: vec![(String::from("type"), String::from("sequencediagram:content"))]
+                ]),
+                attributes: vec![]
             }))
         ];
         assert_eq!(elements, expected);

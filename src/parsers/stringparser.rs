@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use std::cell::{RefCell};
-use datatypes::{SliceWithContext, ElementType, Element, Document};
+use datatypes::{SliceWithContext, ElementContent, Element, Document};
 use parsers::datatypes::{Parser, ParserResult};
 use parseutils::*;
 
@@ -98,12 +98,8 @@ impl Parser for StringParser {
         }
 
         let mut elements = Vec::new();
-        elements.push(Rc::new(RefCell::new(Element {
-            value: self.collec.take().unwrap(),
-            etype: ElementType::StringType,
-            children: vec![],
-            attributes: vec![],
-        })));
+        elements.push(Rc::new(RefCell::new(Element::new_string("text", self.collec.take().unwrap()))));
+
 
         return (elements, vec![]);
     }
@@ -142,7 +138,7 @@ mod tests {
 
         let (elements, documents) = parser.flush();
         assert_eq!(elements.len(), 1);
-        assert_eq!(elements[0].borrow().value, "coucou");
+        assert_eq!(elements[0].borrow().get_text(), "coucou");
     }
 
     #[test]
@@ -167,7 +163,7 @@ mod tests {
 
         let (elements, documents) = parser.flush();
         assert_eq!(elements.len(), 1);
-        assert_eq!(elements[0].borrow().value, "coucou");
+        assert_eq!(elements[0].borrow().get_text(), "coucou");
     }
 
     #[test]
@@ -206,7 +202,7 @@ mod tests {
 
         let (elements, documents) = parser.flush();
         assert_eq!(elements.len(), 1);
-        assert_eq!(elements[0].borrow().value, "cou\ncou");
+        assert_eq!(elements[0].borrow().get_text(), "cou\ncou");
     }
 
     #[test]
@@ -229,7 +225,7 @@ mod tests {
 
         let (elements, documents) = parser.flush();
         assert_eq!(elements.len(), 1);
-        assert_eq!(elements[0].borrow().value, "cou☃cou");
+        assert_eq!(elements[0].borrow().get_text(), "cou☃cou");
     }
 
     #[test]
@@ -253,7 +249,7 @@ mod tests {
 
         let (elements, documents) = parser.flush();
         assert_eq!(elements.len(), 1);
-        assert_eq!(elements[0].borrow().value, "");
+        assert_eq!(elements[0].borrow().get_text(), "");
     }
 
 

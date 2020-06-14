@@ -35,11 +35,14 @@ impl<'a> SliceWithContext<'a>{
 
 
 
+
+
 #[derive(Debug)]
 #[derive(PartialEq)]
-pub enum ElementType {
-    StringType,    // element contains text
-    StructureType, // just tree structure
+pub enum ElementContent {
+    Tree(Vec<Rc<RefCell<Element>>>), // just tree structure
+    Text(String),                    // element contains text value
+    // binary type ??
 }
 
 // Not completely convinced. about this
@@ -49,38 +52,130 @@ pub enum ElementType {
 #[derive(Debug)]
 #[derive(PartialEq)]
 pub struct Element {
-    pub value: String, // in case of string type, the text content. otherwise, an ID? an element name ?
-    pub etype: ElementType,
-    pub children: Vec<Rc<RefCell<Element>>>,
+    pub tag: String,
+    pub content: ElementContent,
     pub attributes: Vec<(String, String)>,
 }
 
 impl Element {
-    pub fn new() -> Element{
+    pub fn new(tag: &str) -> Element{
         Element {
-            value: String::new(),
-            etype: ElementType::StructureType,
-            children:vec![],
+            tag: String::from(tag),
+            content: ElementContent::Tree(vec![]),
             attributes:vec![],
         }
     }
 
-    pub fn new_str(text: &str) -> Element{
+    pub fn new_str(tag: &str, text: &str) -> Element{
         Element {
-            value: String::from(text),
-            etype: ElementType::StringType,
-            children:vec![],
+            tag: String::from(tag),
+            content: ElementContent::Text(String::from(text)),
             attributes:vec![],
         }
     }
-    pub fn new_string(text: String) -> Element{
+    pub fn new_string(tag: &str, text: String) -> Element{
         Element {
-            value: text,
-            etype: ElementType::StringType,
-            children:vec![],
+            tag: String::from(tag),
+            content: ElementContent::Text(text),
             attributes:vec![],
         }
     } 
+
+    pub fn get_attr(&self, key: &str) -> Option<String>{
+        //smells like I need a hashmap instead
+        for (k,v) in &self.attributes{
+            if k == key {
+                return Some(v.to_string());
+            }
+        }
+        return None;
+    }
+
+    pub fn push(&mut self, ptr:Rc<RefCell<Element>>){
+        if let ElementContent::Tree(ref mut children) = self.content{
+            children.push(ptr);
+        }
+        else{
+            panic!("Element is not a tree");
+        }
+    }
+
+    pub fn get_text(&self)->String{
+        if let ElementContent::Text(text) = &self.content{
+            //TODO  not optimal
+            return text.to_string();
+        }
+        else{
+            panic!("Element is not a text element");
+        }
+    }
+
+    pub fn is_text(&self)->bool{
+        match &self.content{
+            ElementContent::Tree(_)=>false,
+            ElementContent::Text(_)=>true
+        }
+    }
+
+    pub fn is_tree(&self)->bool{
+        match &self.content{
+            ElementContent::Tree(_)=>true,
+            ElementContent::Text(_)=>false
+        }
+    }
+
+    pub fn to_xml(&self)->String{
+        self._to_xml(0)
+    }
+
+    fn _to_xml(&self, level:usize)->String{
+        let mut xml=String::new();
+        for _ in 0..level{
+            xml.push('\t');
+        }
+
+        match &self.content{
+            ElementContent::Tree(children) =>{
+                if children.len()==0{
+                    xml.push_str(format!("<{}", self.tag).as_str());
+                    for (k, v) in &self.attributes{
+                        xml.push_str(format!(" {}=\"{}\"", k, v).as_str());
+                    }
+                    xml.push_str("/>\n");
+                }
+                else {
+                    xml.push_str(format!("<{}", self.tag).as_str());
+                    for (k, v) in &self.attributes{
+                        xml.push_str(format!(" {}=\"{}\"", k, v).as_str());
+                    }
+                    xml.push_str(">\n");
+                    for c in children{
+                        xml.push_str(c.borrow()._to_xml(level+1).as_str());
+                    }
+                    for _ in 0..level{
+                        xml.push('\t');
+                    }
+                    xml.push_str(format!("</{}>\n", self.tag).as_str());
+                }
+            },
+            ElementContent::Text(text) =>{
+                if self.tag.len() ==0{
+                    // No escaping. I expect the text to be escaped by the application
+                    xml.push_str(&text.as_str());
+                    xml.push('\n');
+                }
+                else{
+                    xml.push_str(format!("<{}", self.tag).as_str());
+                    for (k, v) in &self.attributes{
+                        xml.push_str(format!(" {}=\"{}\"", k, v).as_str());
+                    }
+                    xml.push_str(format!(">{}</{}>\n", text, self.tag).as_str());
+                }
+            }
+        }
+
+        return xml;
+    }
 }
 
 #[derive(Debug)]
@@ -92,16 +187,18 @@ pub struct Document {
 // as a parameter of the recursive function.
 // This seems less confusing for the borrow checker
 struct KludgeFn<'s>{
-    f: &'s mut FnMut(&Element, usize)
+    f: &'s mut FnMut(Rc<RefCell<Element>>, usize)
 }
 
 // Depth-first tree traversal
+// Not an Element method because I want the Rc as a closure parameter, 
+// not the element direcly
 pub fn recurse_element_tree<F>(elt: Rc<RefCell<Element>>, mut f: F)
 where 
-    F: FnMut(&Element, usize) 
+    F: FnMut(Rc<RefCell<Element>>, usize) 
 {
     let mut k = KludgeFn{f:&mut f};
-    (k.f)(&elt.borrow(), 0);
+    (k.f)(Rc::clone(&elt), 0);
     return _recurse_tree(elt, &mut k, 1);
 }
 
@@ -114,10 +211,12 @@ fn _recurse_tree(elt: Rc<RefCell<Element>>, k: & mut KludgeFn, depth:usize)
         return;
     }
     let element=elt.borrow();
-    let mut iter=element.children.iter();
-    while let Some(e) = iter.next(){
-        (k.f)(&e.borrow(), depth);
-        _recurse_tree(Rc::clone(e), k, depth+1);
+    if let ElementContent::Tree(children) = &element.content{
+        let mut iter=children.iter();
+        while let Some(e) = iter.next(){
+            (k.f)(Rc::clone(&e), depth);
+            _recurse_tree(Rc::clone(e), k, depth+1);
+        }
     }
 }
 
@@ -127,55 +226,57 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_types(){
+        let elt1 =Element::new("tag");
+        assert!(elt1.is_tree());
+        assert!(!elt1.is_text());
+
+        let elt2 =Element::new_str("tag", "text");
+        assert!(elt2.is_text());
+        assert!(!elt2.is_tree());
+    }
+
+    #[test]
     fn test_recurse() {
         let tree= Rc::new(RefCell::new(Element{
-            value: String::new(),
-            etype: ElementType::StructureType,
-            children: vec![
+            tag: String::from("sequencediagram:header"),
+            content: ElementContent::Tree(vec![
                 Rc::new(RefCell::new(Element{
-                    value: String::new(),
-                    etype: ElementType::StructureType,
-                    children: vec![
+                    tag: String::new(),
+                    content: ElementContent::Tree(vec![
                         Rc::new(RefCell::new(Element{
-                            value: String::from("alice"),
-                            etype: ElementType::StringType,
-                            children: vec![],
+                            tag: String::new(),
+                            content: ElementContent::Text(String::from("alice")),
                             attributes: vec![],
                         }))
-                    ],
-                    attributes: vec![
-                        (String::from("type"), String::from("participant")),
-                        (String::from("alias"), String::from("alice")),
-                    ]
+                    ]),
+                    attributes: vec![]
                 })),
                 Rc::new(RefCell::new(Element{
-                    value: String::new(),
-                    etype: ElementType::StructureType,
-                    children: vec![
+                    tag: String::new(),
+                    content: ElementContent::Tree(vec![
                         Rc::new(RefCell::new(Element{
-                            value: String::from("bob"),
-                            etype: ElementType::StringType,
-                            children: vec![],
+                            tag: String::from("name"),
+                            content: ElementContent::Text(String::from("bob")),
                             attributes: vec![],
                         }))
-                    ],
-                    attributes: vec![
-                        (String::from("type"), String::from("participant")),
-                        (String::from("alias"), String::from("bob")),
-                    ]
+                    ]),
+                    attributes: vec![]
                 }))
-            ],
-            attributes: vec![(String::from("type"), String::from("sequencediagram:header"))]
+            ]),
+            attributes: vec![]
         }));
             
-        recurse_element_tree(Rc::clone(&tree), |e, d|{println!("{}:{:?}", d, e)});
+        recurse_element_tree(Rc::clone(&tree), |e, d|{println!("{}:{:?}", d, e.borrow())});
         let mut str_count=0;
         let mut struct_count=0;
         recurse_element_tree(Rc::clone(&tree), 
             |e, d|{
-                match e.etype{
-                    ElementType::StringType => str_count+=1,
-                    ElementType::StructureType => struct_count+=1,
+                if e.borrow().is_text(){
+                    str_count+=1;
+                }
+                else{
+                    struct_count+=1;
                 }
         });
         assert_eq!(str_count, 2);
@@ -183,4 +284,51 @@ mod tests {
         println!("string {:?}", str_count);
         println!("struct {:?}", struct_count);
     }
+
+
+    #[test]
+    fn test_xml1() {
+        let element=Element::new_str("", "lorem ipsum");
+        assert_eq!(element.to_xml(), String::from("lorem ipsum\n"));
+    }
+
+    #[test]
+    fn test_xml2() {
+        let element=Element::new_str("p", "lorem ipsum");
+        assert_eq!(element.to_xml(), String::from("<p>lorem ipsum</p>\n"));
+    }
+
+    #[test]
+    fn test_xml3() {
+        let mut element=Element::new("p");
+        element.push(Rc::new(RefCell::new(Element::new_str("", "lorem ipsum"))));
+        assert_eq!(element.to_xml(), String::from("<p>\n\tlorem ipsum\n</p>\n"));
+    }
+
+    #[test]
+    fn test_xml4() {
+        let mut element=Element::new("img");
+        element.attributes.push(("src".to_string(), "surprised_pikachu.jpg".to_string()));
+        assert_eq!(element.to_xml(), String::from("<img src=\"surprised_pikachu.jpg\"/>\n"));
+    }
+
+    #[test]
+    fn test_xml5() {
+        let mut body=Element::new("body");
+        let mut element=Element::new("p");
+        element.push(Rc::new(RefCell::new(Element::new_str("", "lorem ipsum"))));
+        body.push(Rc::new(RefCell::new(element)));
+
+        assert_eq!(body.to_xml(), String::from("<body>\n\t<p>\n\t\tlorem ipsum\n\t</p>\n</body>\n"));
+    }
+
+    #[test]
+    fn test_xml6() {
+        let mut element=Element::new("p");
+        element.push(Rc::new(RefCell::new(Element::new_str("", "lorem ipsum"))));
+        element.attributes.push(("class".to_string(), "american".to_string()));
+
+        assert_eq!(element.to_xml(), String::from("<p class=\"american\">\n\tlorem ipsum\n</p>\n"));
+    }
+
 }
