@@ -22,7 +22,6 @@ pub struct SliceWithContext<'a> {
 
 
 impl<'a> SliceWithContext<'a>{
-    #[cfg(test)]
     pub fn new_for_tests(text: &'static str)->SliceWithContext{
         SliceWithContext {
             slice: text,

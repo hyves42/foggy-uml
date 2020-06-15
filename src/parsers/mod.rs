@@ -1,7 +1,7 @@
-mod datatypes;
-mod stringparser;
-mod markdownparser;
-mod sequenceparser;
-mod parsercombinator;
-mod stringparseutils;
+pub mod datatypes;
+pub mod stringparser;
+pub mod markdownparser;
+pub mod sequenceparser;
+pub mod parsercombinator;
+pub mod stringparseutils;
 

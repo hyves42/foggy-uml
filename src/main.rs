@@ -2,6 +2,8 @@ use std::io::BufRead;
 use std::rc::Rc;
 use std::cell::{RefCell};
 
+
+
 mod datatypes;
 mod parsers;
 mod builders;
@@ -13,8 +15,10 @@ extern crate maplit;
 use std::io::Cursor;
 use std::io;
 
-use datatypes::{ElementContent, Element};
-use builders::svgbuilder::*;
+use datatypes::{ElementContent, Element, SliceWithContext};
+use parsers::datatypes::*;
+use parsers::sequenceparser::SequenceDiagramParser;
+use builders::sequencebuilder::SequenceDiagramBuilder;
 
 // Test
 struct TestDataSource {}
@@ -33,11 +37,16 @@ impl preprocessor::Datasource for TestDataSource {
 }
 
 fn main() {
-    let mut source = TestDataSource {};
-    let mut pre = preprocessor::Preprocessor::new(&source, &["utf8", "utf8", "file.fgu"]);
+    // let mut source = TestDataSource {};
+    // let mut pre = preprocessor::Preprocessor::new(&source, &["utf8", "utf8", "file.fgu"]);
 
-    let mut svg = create_svg(200.0,200.0);
-    svg.push(Rc::new(RefCell::new(create_rect(10.0, 10.0, 10.0, 10.0, "", Some(1.0), None))));
-    println!("svg :\n{:?}", svg.to_xml());
+    let mut parser = SequenceDiagramParser::new();
+    parser.step(& mut SliceWithContext::new_for_tests(&"alice->bob : Hello"));
+    parser.step(& mut SliceWithContext::new_for_tests(&"alice<-bob : ..."));
+    parser.step(& mut SliceWithContext::new_for_tests(&"bob->eve : !!!"));
 
+    let (elements, documents) = parser.flush();
+    let mut builder = SequenceDiagramBuilder::new();
+    let xml = builder.generate_svg(&elements);
+    println!("{}", xml.unwrap())
 }

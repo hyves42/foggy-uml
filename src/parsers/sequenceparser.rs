@@ -111,7 +111,7 @@ enum HDCloseCondition {
 }
 
 
-struct SequenceDiagramParser {
+pub struct SequenceDiagramParser {
     // a string buffer to collect text for the element being parsed
     collec: Option<String>,
     // full tree structure of document
@@ -125,7 +125,7 @@ struct SequenceDiagramParser {
 
 
 impl SequenceDiagramParser {
-    fn new() -> SequenceDiagramParser {
+    pub fn new() -> SequenceDiagramParser {
         SequenceDiagramParser {
             collec: Some(String::new()),
             title:None,
