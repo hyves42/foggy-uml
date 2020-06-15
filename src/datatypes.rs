@@ -1,5 +1,6 @@
 use std::rc::Rc;
 use std::cell::{RefCell};
+use parseutils::*;
 
 
 #[derive(Debug)]
@@ -100,6 +101,10 @@ impl Element {
         }
     }
 
+    pub fn push_attribute(&mut self, key:&str, value:&str){
+        self.attributes.push((key.to_string(), value.to_string()));
+    }
+
     pub fn get_text(&self)->String{
         if let ElementContent::Text(text) = &self.content{
             //TODO  not optimal
@@ -176,6 +181,51 @@ impl Element {
 
         return xml;
     }
+
+
+    // support a simple subset of xpath
+    // relative path to children
+    // text()
+    pub fn get(&self, path:&str)->Option<ElementContent>{
+        let (remaining, prefix)=consume_until_token_in_list(path, &["/"]).unwrap();
+
+        match &self.content{
+            ElementContent::Tree(children) =>{
+
+                // find child that match 'prefix'
+                let mut child:Option<Rc<RefCell<Element>>> = None;
+                for c in children{
+                    if c.borrow().tag == prefix{
+                        if child != None{
+                            return None; // child is invalid if several childs with the same tag exist
+                        }
+                        else{
+                            child = Some(Rc::clone(c));
+                        }
+                    }
+                }
+
+                if let Some(c)=child {
+                    if let Ok((subpath, _))=consume_token_in_list(remaining, &["/"]){
+                        if subpath.len() ==0{
+                            return Some(ElementContent::Tree(vec![Rc::clone(&c)]));
+                        }
+                        else{
+                            return c.borrow().get(subpath);
+                        }
+                    }
+                }
+            },
+            ElementContent::Text(text) =>{
+                if remaining == "" && prefix == "text()" {    
+                    return Some(ElementContent::Text(text.to_string()));
+                }
+            }
+
+        }
+        return None;
+    } 
+
 }
 
 #[derive(Debug)]
@@ -214,6 +264,7 @@ fn _recurse_tree(elt: Rc<RefCell<Element>>, k: & mut KludgeFn, depth:usize)
     if let ElementContent::Tree(children) = &element.content{
         let mut iter=children.iter();
         while let Some(e) = iter.next(){
+
             (k.f)(Rc::clone(&e), depth);
             _recurse_tree(Rc::clone(e), k, depth+1);
         }
@@ -281,8 +332,6 @@ mod tests {
         });
         assert_eq!(str_count, 2);
         assert_eq!(struct_count, 3);
-        println!("string {:?}", str_count);
-        println!("struct {:?}", struct_count);
     }
 
 
@@ -329,6 +378,18 @@ mod tests {
         element.attributes.push(("class".to_string(), "american".to_string()));
 
         assert_eq!(element.to_xml(), String::from("<p class=\"american\">\n\tlorem ipsum\n</p>\n"));
+    }
+
+
+
+    #[test]
+    fn test_xpath1() {
+        let mut body=Element::new("body");
+        let mut element=Element::new("p");
+        element.push(Rc::new(RefCell::new(Element::new_str("span", "lorem ipsum"))));
+        body.push(Rc::new(RefCell::new(element)));
+
+        assert_eq!(body.get("p/span/text()"), Some(ElementContent::Text(String::from("lorem ipsum"))));
     }
 
 }
