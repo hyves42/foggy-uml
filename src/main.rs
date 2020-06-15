@@ -36,7 +36,7 @@ fn main() {
     let mut source = TestDataSource {};
     let mut pre = preprocessor::Preprocessor::new(&source, &["utf8", "utf8", "file.fgu"]);
 
-    let mut svg = create_svg(200,200);
+    let mut svg = create_svg(200.0,200.0);
     svg.push(Rc::new(RefCell::new(create_rect(10.0, 10.0, 10.0, 10.0, "", Some(1.0), None))));
     println!("svg :\n{:?}", svg.to_xml());
 

@@ -2,14 +2,14 @@ use datatypes::{ElementContent, Element};
 use std::rc::Rc;
 use std::cell::{RefCell};
 
-pub fn create_svg(width:usize, height:usize)->Element{
+pub fn create_svg(width:f32, height:f32)->Element{
     // <svg version="1.1" xmlns="http://www.w3.org/2000/svg" 
     //  xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 462.219 381.915" >
     let mut elt: Element = Element::new("svg");
     elt.attributes.push(("version".to_string(), "1.1".to_string()));
     elt.attributes.push(("xmlns".to_string(), "http://www.w3.org/2000/svg".to_string()));
     elt.attributes.push(("xmlns:xlink".to_string(), "http://www.w3.org/1999/xlink".to_string()));
-    elt.attributes.push(("viewBox".to_string(), format!("0 0 {} {}", width, height)));
+    elt.attributes.push(("viewBox".to_string(), format!("0 0 {:.4} {:.4}", width, height)));
     return elt;
 }
 
@@ -113,3 +113,4 @@ pub fn create_tspan(x:Option<f32>, y:Option<f32>, style:Option<&str>, id:Option<
     }
     return elt;
 }
+
