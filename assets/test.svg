@@ -1,0 +1,42 @@
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 200.0000 46.0000">
+	<g id="header">
+		<rect x="26.0000" y="0.0000" width="28.0000" height="18.0000" style="fill:#ede7d9;fill-opacity:1;stroke:#2e282a;stroke-width:0.26458332;stroke-opacity:1" ry="0.8000"/>
+		<text xml:space="preserve" style="font-style:normal;font-weight:normal;font-size:3.8px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;" x="40.0000" y="5.0000" text-anchor="middle">
+			<tspan>alice</tspan>
+		</text>
+		<path d="m 40,18 v 28" style="stroke:#568259;stroke-width:0.5;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"/>
+		<rect x="66.0000" y="0.0000" width="28.0000" height="18.0000" style="fill:#ede7d9;fill-opacity:1;stroke:#2e282a;stroke-width:0.26458332;stroke-opacity:1" ry="0.8000"/>
+		<text xml:space="preserve" style="font-style:normal;font-weight:normal;font-size:3.8px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;" x="80.0000" y="5.0000" text-anchor="middle">
+			<tspan>bob</tspan>
+		</text>
+		<path d="m 80,18 v 28" style="stroke:#568259;stroke-width:0.5;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"/>
+		<rect x="106.0000" y="0.0000" width="28.0000" height="18.0000" style="fill:#ede7d9;fill-opacity:1;stroke:#2e282a;stroke-width:0.26458332;stroke-opacity:1" ry="0.8000"/>
+		<text xml:space="preserve" style="font-style:normal;font-weight:normal;font-size:3.8px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;" x="120.0000" y="5.0000" text-anchor="middle">
+			<tspan>eve</tspan>
+		</text>
+		<path d="m 120,18 v 28" style="stroke:#568259;stroke-width:0.5;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"/>
+	</g>
+	<g id="content">
+		<g>
+			<path d="m 40,26 h 40" style="fill:none;stroke:#2e282a;stroke-width:0.40000001;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"/>
+			<path d="m 76,25 4,1 -4,1 z" style="fill:#857970;fill-opacity:1;stroke:#2e282a;stroke-width:0.40000001;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"/>
+		</g>
+		<text xml:space="preserve" style="font-style:normal;font-weight:normal;font-size:3.8px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;" x="44.0000" y="25.0000">
+			<tspan>Hello</tspan>
+		</text>
+		<g>
+			<path d="m 80,34 h -40" style="fill:none;stroke:#2e282a;stroke-width:0.40000001;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"/>
+			<path d="m 44,33 -4,1 4,1 z" style="fill:#857970;fill-opacity:1;stroke:#2e282a;stroke-width:0.40000001;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"/>
+		</g>
+		<text xml:space="preserve" style="font-style:normal;font-weight:normal;font-size:3.8px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;" x="44.0000" y="33.0000">
+			<tspan>...</tspan>
+		</text>
+		<g>
+			<path d="m 80,42 h 40" style="fill:none;stroke:#2e282a;stroke-width:0.40000001;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"/>
+			<path d="m 116,41 4,1 -4,1 z" style="fill:#857970;fill-opacity:1;stroke:#2e282a;stroke-width:0.40000001;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"/>
+		</g>
+		<text xml:space="preserve" style="font-style:normal;font-weight:normal;font-size:3.8px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;" x="84.0000" y="41.0000">
+			<tspan>!!!</tspan>
+		</text>
+	</g>
+</svg>
