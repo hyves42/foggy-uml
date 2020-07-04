@@ -223,6 +223,10 @@ impl SequenceDiagramBuilder{
                             document_height+=h;
 
                         }
+                        else{
+                            let (_,h) = Self::estimate_arrow_dimensions(Rc::clone(&e));
+                            document_height+=h;
+                        }
                     }
 
                 }
