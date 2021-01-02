@@ -1,10 +1,10 @@
 use std::rc::Rc;
 use std::cell::{RefCell};
 use std::collections::HashMap;
-use datatypes::*;
+use crate::datatypes::*;
 use std::cmp;
-use parseutils::*;
-use builders::svgbuilder::*;
+use crate::parseutils::*;
+use crate::builders::svgbuilder::*;
 
 static FONT_SIZE:f32=4.0; // in SVG user coordinates. This is the size from baseline to baseline
 static FONT_INTERLINE:f32=6.0; // in SVG user coordinates.

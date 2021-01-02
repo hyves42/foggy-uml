@@ -3,22 +3,17 @@ use std::rc::Rc;
 use std::cell::{RefCell};
 
 
-
-mod datatypes;
-mod parsers;
-mod builders;
-mod parseutils;
-mod preprocessor;
-extern crate maplit;
+extern crate foggy_engine;
 
 // For testing
 use std::io::Cursor;
 use std::io;
 
-use datatypes::{ElementContent, Element, SliceWithContext};
-use parsers::datatypes::*;
-use parsers::sequenceparser::SequenceDiagramParser;
-use builders::sequencebuilder::SequenceDiagramBuilder;
+use foggy_engine::datatypes::{ElementContent, Element, SliceWithContext};
+use foggy_engine::parsers::datatypes::*;
+use foggy_engine::parsers::sequenceparser::SequenceDiagramParser;
+use foggy_engine::builders::sequencebuilder::SequenceDiagramBuilder;
+use foggy_engine::preprocessor;
 
 // Test
 struct TestDataSource {}

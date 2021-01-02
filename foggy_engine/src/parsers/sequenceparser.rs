@@ -1,9 +1,9 @@
 use std::rc::Rc;
 use std::cell::{RefCell};
-use datatypes::{SliceWithContext, ElementContent, Element, Document};
-use parsers::datatypes::{Parser, ParserResult};
-use parseutils::*;
-use parsers::stringparseutils::*;
+use crate::datatypes::{SliceWithContext, ElementContent, Element, Document};
+use crate::parsers::datatypes::{Parser, ParserResult};
+use crate::parseutils::*;
+use crate::parsers::stringparseutils::*;
 use std::collections::HashMap;
 
 use maplit::hashmap;

@@ -1,8 +1,8 @@
 use std::rc::Rc;
 use std::cell::{RefCell};
-use datatypes::{SliceWithContext, ElementContent, Element, Document};
-use parsers::datatypes::{Parser, ParserResult};
-use parseutils::*;
+use crate::datatypes::{SliceWithContext, ElementContent, Element, Document};
+use crate::parsers::datatypes::{Parser, ParserResult};
+use crate::parseutils::*;
 
 pub struct StringParser {
     collec: Option<String>,

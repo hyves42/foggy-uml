@@ -4,5 +4,6 @@ version = "0.1.0"
 authors = ["yves"]
 
 [dependencies]
-maplit = "1.0.2"
+foggy_engine = { path = "foggy_engine" }
+
 

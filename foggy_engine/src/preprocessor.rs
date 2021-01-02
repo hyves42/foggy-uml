@@ -2,8 +2,8 @@ use std::io::{BufRead, Lines};
 use std::iter::Iterator;
 use std::rc::Rc;
 
-use datatypes::LineWithContext;
-use parseutils::*;
+use crate::datatypes::LineWithContext;
+use crate::parseutils::*;
 
 // a data source for the preprocessor
 // typically a wrapper around file access

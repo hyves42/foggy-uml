@@ -1,6 +1,6 @@
 use std::rc::Rc;
-use datatypes::{LineWithContext, SliceWithContext, ElementContent, Element, Document};
-use parsers::datatypes::{Parser, ParserResult};
+use crate::datatypes::{LineWithContext, SliceWithContext, ElementContent, Element, Document};
+use crate::parsers::datatypes::{Parser, ParserResult};
 //use parsers::stringparser::StringParser;
 
 
