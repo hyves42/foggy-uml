@@ -34,8 +34,7 @@ impl<'a> SliceWithContext<'a>{
 
 }
 
-
-type Rcc<T> = Rc<RefCell<T>>;
+pub type Rcc<T> = Rc<RefCell<T>>;
 pub fn rcc<T>(t: T) -> Rcc<T> {
     Rc::new(RefCell::new(t))
 }
@@ -300,7 +299,7 @@ pub struct Document {
 // as a parameter of the recursive function.
 // This seems less confusing for the borrow checker
 struct KludgeFn<'s>{
-    f: &'s mut FnMut(Rc<RefCell<Element>>, usize)
+    f: &'s mut dyn FnMut(Rc<RefCell<Element>>, usize)
 }
 
 // Depth-first tree traversal
@@ -410,7 +409,7 @@ mod tests {
 
     #[test]
     fn test_xml6() {
-        let mut element=Element::new("p")
+        let element=Element::new("p")
             .attr("class", "american")
             .child(Element::str("lorem ipsum"));
 
@@ -421,7 +420,7 @@ mod tests {
 
     #[test]
     fn test_xpath1() {
-        let mut body=Element::new("body")
+        let body=Element::new("body")
             .child(
                 Element::new("p")
                     .child(

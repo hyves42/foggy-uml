@@ -52,11 +52,11 @@ impl<'a> Preprocessor<'a> {
 // Return Some((token, file)) if valid match
 fn parse_import_include_statement(input: &str) -> Option<Result<(&str, &str), &'static str>> {
     match consume_token_in_list(&input, &["/import", "/include"]) {
-        Err(s) => return None,
+        Err(_s) => return None,
         Ok((rem, token)) => {
-            let (rem, unused) = consume_whitespaces(rem);
+            let (rem, _) = consume_whitespaces(rem);
             if let Ok((rem, file)) = consume_until_whitespace(rem) {
-                let (rem, unused) = consume_whitespaces(rem);
+                let (rem, _) = consume_whitespaces(rem);
                 if rem.len() == 0 {
                     return Some(Ok((token, file)));
                 }
@@ -202,8 +202,8 @@ mod tests {
 
     #[test]
     fn test_preproc_1line() {
-        let mut source = SimpleTestDataSource {};
-        let mut pre = Preprocessor::new(&source, &["test_1line"]);
+        let source = SimpleTestDataSource {};
+        let pre = Preprocessor::new(&source, &["test_1line"]);
 
         let output: Vec<Result<LineWithContext, &'static str>> = pre.collect();
         assert_eq!(output.len(), 1);
@@ -215,8 +215,8 @@ mod tests {
 
     #[test]
     fn test_preproc_3line() {
-        let mut source = SimpleTestDataSource {};
-        let mut pre = Preprocessor::new(&source, &["test_3lines"]);
+        let source = SimpleTestDataSource {};
+        let pre = Preprocessor::new(&source, &["test_3lines"]);
 
         let output: Vec<Result<LineWithContext, &'static str>> = pre.collect();
         assert_eq!(output.len(), 3);
@@ -231,8 +231,8 @@ mod tests {
 
     #[test]
     fn test_preproc_import() {
-        let mut source = SimpleTestDataSource {};
-        let mut pre = Preprocessor::new(&source, &["file_with_import"]);
+        let source = SimpleTestDataSource {};
+        let pre = Preprocessor::new(&source, &["file_with_import"]);
 
         let output: Vec<Result<LineWithContext, &'static str>> = pre.collect();
         assert_eq!(output.len(), 5);
@@ -244,8 +244,8 @@ mod tests {
 
     #[test]
     fn test_preproc_include() {
-        let mut source = SimpleTestDataSource {};
-        let mut pre = Preprocessor::new(&source, &["file_with_include"]);
+        let source = SimpleTestDataSource {};
+        let pre = Preprocessor::new(&source, &["file_with_include"]);
 
         let output: Vec<Result<LineWithContext, &'static str>> = pre.collect();
         assert_eq!(output.len(), 7);
@@ -253,8 +253,8 @@ mod tests {
 
     #[test]
     fn test_file_with_bad_include() {
-        let mut source = SimpleTestDataSource {};
-        let mut pre = Preprocessor::new(&source, &["file_with_bad_include"]);
+        let source = SimpleTestDataSource {};
+        let pre = Preprocessor::new(&source, &["file_with_bad_include"]);
 
         let output: Vec<Result<LineWithContext, &'static str>> = pre.collect();
         assert_eq!(output.len(), 1);

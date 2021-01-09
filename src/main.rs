@@ -1,15 +1,10 @@
-use std::io::BufRead;
-use std::rc::Rc;
-use std::cell::{RefCell};
-
-
 extern crate foggy_engine;
 
 // For testing
 use std::io::Cursor;
-use std::io;
+use std::io::BufRead;
 
-use foggy_engine::datatypes::{ElementContent, Element, SliceWithContext};
+use foggy_engine::datatypes::*;
 use foggy_engine::parsers::datatypes::*;
 use foggy_engine::parsers::sequenceparser::SequenceDiagramParser;
 use foggy_engine::builders::sequencebuilder::SequenceDiagramBuilder;
@@ -40,7 +35,7 @@ fn main() {
     parser.step(& mut SliceWithContext::new_for_tests(&"alice<-bob : ..."));
     parser.step(& mut SliceWithContext::new_for_tests(&"bob->eve : !!!"));
 
-    let (elements, documents) = parser.flush();
+    let (elements, _documents) = parser.flush();
     let mut builder = SequenceDiagramBuilder::new();
     let xml = builder.generate_svg(&elements);
     println!("{}", xml.unwrap())

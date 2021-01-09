@@ -1,5 +1,4 @@
 use crate::parseutils::*;
-use std::iter;
 
 
 pub fn starts_with_token<'a,'b>(
@@ -36,7 +35,7 @@ pub fn consume_between_tokens<'a,'b>(
     }
 
     if let Ok((rem, consumed)) = consume_token_in_list(cursor_slice, &[start_token]){
-        if (consumed==start_token){
+        if consumed==start_token{
             cursor_slice=rem;
             // don't include the final token in the returned slice, but include it in the consumed offset
             return Ok((cursor_slice, &input[offset_start..offset], offset+consumed.len()));
@@ -65,7 +64,7 @@ pub fn consume_until_token_escape<'a, 'b>(
 
     let mut cursor_slice = input;
     let mut offset:usize = 0;
-    let mut slice_to_return=input;
+
 
     while cursor_slice.len() >0 {
         match consume_until_token_in_list(cursor_slice, &all_tokens){

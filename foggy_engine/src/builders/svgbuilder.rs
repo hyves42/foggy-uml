@@ -1,11 +1,9 @@
-use crate::datatypes::{ElementContent, Element};
-use std::rc::Rc;
-use std::cell::{RefCell};
+use crate::datatypes::Element;
 
 pub fn create_svg(width:f32, height:f32)->Element{
     // <svg version="1.1" xmlns="http://www.w3.org/2000/svg" 
     //  xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 462.219 381.915" >
-    let mut elt: Element = Element::new("svg")
+    let elt: Element = Element::new("svg")
         .attr("version", "1.1")
         .attr("xmlns", "http://www.w3.org/2000/svg")
         .attr("xmlns:xlink", "http://www.w3.org/1999/xlink")

@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use std::cell::{RefCell};
-use crate::datatypes::{SliceWithContext, ElementContent, Element, Document};
+use crate::datatypes::*;
 use crate::parsers::datatypes::{Parser, ParserResult};
 use crate::parseutils::*;
 use crate::parsers::stringparseutils::*;
@@ -22,7 +22,7 @@ use maplit::hashmap;
 // - state changes
 // - vertical sepration
 
-static reserved_tokens_header: [&'static str;12] = [
+static RESERVED_TOKENS_HEADER: [&'static str;12] = [
     //actors definitions in header
     "participant",
     "actor", 
@@ -39,7 +39,7 @@ static reserved_tokens_header: [&'static str;12] = [
     "show",
     ];
 
-static reserved_tokens_sequence: [&'static str;18] = [
+static RESERVED_TOKENS_SEQUENCE: [&'static str;18] = [
     "alt",
     "else",
     "group",
@@ -142,7 +142,7 @@ impl SequenceDiagramParser {
         -> Result<(), String>{
 
         let mut slice=input;
-        let mut name_element: Option<Rc<RefCell<Element>>>=None;
+        let mut name_element: Option<Rcc<Element>>=None;
         let mut alias_name: Option<String>=None;        
 
         //expected : space name [space ['as' alias]]
@@ -213,8 +213,9 @@ impl SequenceDiagramParser {
             Some(alias) => participant_element.push_attribute("alias", &alias),
             // no alias name provided, use participant name as alias
             None => if let Some(elt) = &name_element{
-                participant_element.push_attribute("alias", 
-                    &elt.borrow().get_text().clone());
+                if let Some(QueryResult::Text(name)) = elt.borrow().get("text()"){
+                    participant_element.push_attribute("alias", &name);
+                }
             }
                 
         }
@@ -230,7 +231,7 @@ impl SequenceDiagramParser {
 
         let mut slice=input;
         let mut name_element: Option<Rc<RefCell<Element>>>=None;
-        let mut alias_name: Option<String>=None;
+        //let mut alias_name: Option<String>=None;
 
         //expected : space name [space] ['#' color]]
 
@@ -290,8 +291,10 @@ impl SequenceDiagramParser {
         return Ok(());
     }
 
+    // Return the name as text inside an element : <name>The name</name>
+    // Name isn't an attribute because it  could contain text formatting
     // TODO doesn't handle markdown formatters in name string yet
-    fn  consume_name (input: &str)->Result<(&str, Rc<RefCell<Element>>), String>{
+    fn consume_name (input: &str)->Result<(&str, Rc<RefCell<Element>>), String>{
         let string_tokens=["\"", "'"];
         if starts_with_token(input, &string_tokens){
             // Read participant name as a string
@@ -317,7 +320,7 @@ impl SequenceDiagramParser {
 
     fn add_message(&mut self, input:&str)-> Result<(), String>{
         let mut slice=input;
-        let mut name_element: Option<Rc<RefCell<Element>>>=None;
+        //let mut name_element: Option<Rc<RefCell<Element>>>=None;
         let mut left_name: Option<String>=None;
         let mut right_name: Option<String>=None;
         let mut arrow_direction:ArrowDirection = ArrowDirection::Right;
@@ -343,13 +346,13 @@ impl SequenceDiagramParser {
         }
 
         {
-            let (new_slice, spaces) = consume_whitespaces(slice);
+            let (new_slice, _) = consume_whitespaces(slice);
             slice = new_slice;    
         }
 
 
         // Then look for either '[' or left name
-        if let Ok((remaining,token)) = consume_token_in_list(slice, &["["]){
+        if let Ok((remaining, _)) = consume_token_in_list(slice, &["["]){
             //no left_name to parse
             slice=remaining;
         }
@@ -376,10 +379,10 @@ impl SequenceDiagramParser {
         }
 
         {
-            let (new_slice, spaces) = consume_whitespaces(slice);
+            let (new_slice, _) = consume_whitespaces(slice);
             slice = new_slice;    
         }
-        if (slice.len() ==0){
+        if slice.len()==0 {
             return Err(String::from("expecting arrow"))
         }
         // parse arrow
@@ -403,7 +406,7 @@ impl SequenceDiagramParser {
 
 
         // Then look for either ']' or right name
-        if let Ok((remaining,token)) = consume_token_in_list(slice, &["]"]){
+        if let Ok((remaining, _)) = consume_token_in_list(slice, &["]"]){
             //no left_name to parse
             slice=remaining;
         }
@@ -430,20 +433,20 @@ impl SequenceDiagramParser {
         }
 
         {
-            let (new_slice, spaces) = consume_whitespaces(slice);
+            let (new_slice, _) = consume_whitespaces(slice);
             slice = new_slice;    
         }
 
         // Then handle optional magic sortcuts
-        if let Ok((remaining, token)) = consume_token_in_list(slice, &["++", "**", "!!"]){
+        if let Ok((_remaining, _token)) = consume_token_in_list(slice, &["++", "**", "!!"]){
             return Err(String::from("Not implemented yet"));
         }
 
         // Look for ':' separator, followed by arrow text
-        if let Ok((remaining, token)) = consume_token_in_list(slice, &[":"]){
+        if let Ok((remaining, _)) = consume_token_in_list(slice, &[":"]){
             slice=remaining;
             {
-                let (new_slice, spaces) = consume_whitespaces(slice);
+                let (new_slice, _) = consume_whitespaces(slice);
                 slice = new_slice;    
             }  
 
@@ -452,7 +455,7 @@ impl SequenceDiagramParser {
                 // Read message text as a string
                 match consume_between_tokens(slice, &["'", "\""]){
                     Err(_)=> return Err(String::from("unfinished string")),
-                    Ok((remaining, str_content, offset)) => {
+                    Ok((remaining, str_content, _offset)) => {
                         let (_, string) = unescape_to_string(str_content);
                         arrow_text=Some(string);
                     }
@@ -566,10 +569,10 @@ impl SequenceDiagramParser {
 
         let mut slice = input;
 
-        let mut arrow_direction:ArrowDirection = ArrowDirection::Right;
-        let mut arrow_line_type:ArrowLineType = ArrowLineType::Normal;
-        let mut arrow_type:ArrowType = ArrowType::Normal;
-        let mut arrow_decor:Option<ArrowDecor> =None;
+        let mut arrow_direction: ArrowDirection = ArrowDirection::Right;
+        let mut arrow_line_type: ArrowLineType = ArrowLineType::Normal;
+        let mut arrow_type: ArrowType = ArrowType::Normal;
+        let mut arrow_decor: Option<ArrowDecor> =None;
 
         // First check for optional o or x decorators
         if let Ok((remaining, token)) = consume_token_in_list(slice, &["x", "o"]){
@@ -621,7 +624,7 @@ impl SequenceDiagramParser {
         if !self.participants_map.contains_key(&String::from(name)){
 
             // Build participant element ans push it to header
-            let mut header_element = Element::new("participant")
+            let header_element = Element::new("participant")
                 .attr("alias", name)
                 .child(Element::new_str("name", name));
             self.push_to_header(Rc::new(RefCell::new(header_element)));
@@ -690,7 +693,7 @@ impl Parser for SequenceDiagramParser{
         // header line starts with keyword
         if self.state == SequenceDiagramParserState::Header{
             // Check for tokens that are always at the start of line in the header
-            if  let Ok((new_slice, token)) = consume_token_in_list(slice, &reserved_tokens_header) {
+            if  let Ok((new_slice, token)) = consume_token_in_list(slice, &RESERVED_TOKENS_HEADER) {
             	input.slice = new_slice;
                 match token {
                     "participant"|"actor"|"boundary"|"control"|"entity"|"database"|"collections" 
@@ -715,11 +718,8 @@ impl Parser for SequenceDiagramParser{
             }
         }
         // content line starts with keyword
-        if  let Ok((slice, token)) = consume_token_in_list(slice, &reserved_tokens_sequence) {
-            match token {
-                _ => return Err((input, String::from("not implemented"))),
-            }
-            let (slice, unused) = consume_whitespaces(slice);
+        if  let Ok((slice, _token)) = consume_token_in_list(slice, &RESERVED_TOKENS_SEQUENCE) {
+            return Err((input, String::from("not implemented")));
         }
         else{
             self.add_message(slice);
@@ -749,7 +749,7 @@ impl Parser for SequenceDiagramParser{
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::datatypes::{LineWithContext, SliceWithContext};
+    use crate::datatypes::*;
     use std::rc::Rc;
 
 
@@ -758,408 +758,288 @@ mod tests {
     // These tests verify the internal state of the parser
     // As it is based on a trees/stacks build, 
     // I want to verify my assumptions about the instance internal state
-    // #[test]
-    // fn test_sequenceparser_header1() {
-    //     let mut parser = SequenceDiagramParser::new();
+    #[test]
+    fn test_sequenceparser_header1() {
+        let mut parser = SequenceDiagramParser::new();
 
-    //     let mut slice = SliceWithContext::new_for_tests(&"participant bob");
-    //     let returned = parser.step(&mut slice);
-    //     assert!(!returned.is_err());
+        let mut slice = SliceWithContext::new_for_tests(&"participant bob");
+        let returned = parser.step(&mut slice);
+        assert!(!returned.is_err());
 
-    //     let (elements, documents) = parser.flush();
+        let (elements, _documents) = parser.flush();
 
-    //     assert_eq!(elements.len(), 2);
+        assert_eq!(elements.len(), 2);
 
-    //     let expected:Vec<Rc<RefCell<Element>>>=vec![
-    //         Rc::new(RefCell::new(Element{
-    //             tag: String::from("sequencediagram:header"),
-    //             content: ElementContent::Tree(vec![
-    //                 Rc::new(RefCell::new(Element{
-    //                     tag: String::from("participant"),
-    //                     content: ElementContent::Tree(vec![
-    //                         Rc::new(RefCell::new(Element{
-    //                             tag: String::from("name"),
-    //                             content: ElementContent::Text(String::from("bob")),
-    //                             attributes: vec![],
-    //                         }))
-    //                     ]),
-    //                     attributes: vec![
-    //                         (String::from("alias"), String::from("bob")),
-    //                     ]
-    //                 }))
-    //             ]),
-    //             attributes: vec![]
-    //         })),
-    //         Rc::new(RefCell::new(Element{
-    //             tag: String::from("sequencediagram:content"),
-    //             content: ElementContent::Tree(vec![]),
-    //             attributes: vec![]
-    //         }))
-    //     ];
-    //     assert_eq!(elements, expected);
-    // }
+        let expected:Vec<Rcc<Element>>=vec![
+            rcc(Element::new("sequencediagram:header")
+                .child(
+                    Element::new("participant")
+                        .attr("alias", "bob")
+                        .child(
+                            Element::new("name")
+                                .child(Element::str("bob"))
+                        )
+                )
+            ),
+            rcc(Element::new("sequencediagram:content"))
+        ];
+
+        assert_eq!(elements, expected);
+    }
 
 
-    // #[test]
-    // fn test_sequenceparser_header2() {
-    //     let mut parser = SequenceDiagramParser::new();
+    #[test]
+    fn test_sequenceparser_header2() {
+        let mut parser = SequenceDiagramParser::new();
 
-    //     let mut slice = SliceWithContext::new_for_tests(&"participant bobby as bob");
+        let mut slice = SliceWithContext::new_for_tests(&"participant bobby as bob");
 
-    //     let returned = parser.step(&mut slice);
-    //     assert!(!returned.is_err());
-    //     let (elements, documents) = parser.flush();
-    //     assert_eq!(elements.len(), 2);
-
-    //     let expected:Vec<Rc<RefCell<Element>>>=vec![
-    //         Rc::new(RefCell::new(Element{
-    //             tag: String::from("sequencediagram:header"),
-    //             content: ElementContent::Tree(vec![
-    //                 Rc::new(RefCell::new(Element{
-    //                     tag: String::from("participant"),
-    //                     content: ElementContent::Tree(vec![
-    //                         Rc::new(RefCell::new(Element{
-    //                             tag: String::from("name"),
-    //                             content: ElementContent::Text(String::from("bobby")),
-    //                             attributes: vec![],
-    //                         }))
-    //                     ]),
-    //                     attributes: vec![
-    //                         (String::from("alias"), String::from("bob")),
-    //                     ]
-    //                 }))        
-    //             ]),
-    //             attributes: vec![]
-    //         })),
-    //         Rc::new(RefCell::new(Element{
-    //             tag: String::from("sequencediagram:content"),
-    //             content: ElementContent::Tree(vec![]),
-    //             attributes: vec![]
-    //         }))
-    //     ];
-    //     assert_eq!(elements, expected);
-    // }
-
-    // #[test]
-    // fn test_sequenceparser_header3() {
-    //     let mut parser = SequenceDiagramParser::new();
-
-    //     let mut slice = SliceWithContext::new_for_tests(&"participant \"bobby the 🐶\" as bob");
-
-    //     let returned = parser.step(&mut slice);
-    //     assert!(!returned.is_err());
-    //     let (elements, documents) = parser.flush();
-    //     assert_eq!(elements.len(), 2);
-
-    //     let expected:Vec<Rc<RefCell<Element>>>=vec![
-    //         Rc::new(RefCell::new(Element{
-    //             tag: String::from("sequencediagram:header"),
-    //             content: ElementContent::Tree(vec![
-    //                 Rc::new(RefCell::new(Element{
-    //                     tag: String::from("participant"),
-    //                     content: ElementContent::Tree(vec![
-    //                         Rc::new(RefCell::new(Element{
-    //                             tag: String::from("name"),
-    //                             content: ElementContent::Text(String::from("bobby the 🐶")),
-    //                             attributes: vec![],
-    //                         }))
-    //                     ]),
-    //                     attributes: vec![
-    //                         (String::from("alias"), String::from("bob")),
-    //                     ]
-    //                 }))        
-    //             ]),
-    //             attributes: vec![]
-    //         })),
-    //         Rc::new(RefCell::new(Element{
-    //             tag: String::from("sequencediagram:content"),
-    //             content: ElementContent::Tree(vec![]),
-    //             attributes: vec![]
-    //         }))
-    //     ];
-    //     assert_eq!(elements, expected);
-    // }
-
-    // #[test]
-    // fn test_sequenceparser_header4() {
-    //     let mut parser = SequenceDiagramParser::new();
-
-    //     let mut slice = SliceWithContext::new_for_tests(&"actor \"bobby the 🐶\" as bob");
-
-    //     let returned = parser.step(&mut slice);
-    //     assert!(!returned.is_err());
-    //     let (elements, documents) = parser.flush();
-    //     assert_eq!(elements.len(), 2);
-
-    //     let expected:Vec<Rc<RefCell<Element>>>=vec![
-    //         Rc::new(RefCell::new(Element{
-    //             tag: String::from("sequencediagram:header"),
-    //             content: ElementContent::Tree(vec![
-    //                 Rc::new(RefCell::new(Element{
-    //                     tag: String::from("actor"),
-    //                     content: ElementContent::Tree(vec![
-    //                         Rc::new(RefCell::new(Element{
-    //                             tag: String::from("name"),
-    //                             content: ElementContent::Text(String::from("bobby the 🐶")),
-    //                             attributes: vec![],
-    //                         }))
-    //                     ]),
-    //                     attributes: vec![
-    //                         (String::from("alias"), String::from("bob")),
-    //                     ]
-    //                 }))
-    //             ]),
-    //             attributes: vec![]
-    //         })),
-    //         Rc::new(RefCell::new(Element{
-    //             tag: String::from("sequencediagram:content"),
-    //             content: ElementContent::Tree(vec![]),
-    //             attributes: vec![]
-    //         }))
-    //     ];
-    //     assert_eq!(elements, expected);
-    // }
+        let returned = parser.step(&mut slice);
+        assert!(!returned.is_err());
+        let (elements, _documents) = parser.flush();
+        assert_eq!(elements.len(), 2);
 
 
-    // #[test]
-    // fn test_sequenceparser_box1() {
-    //     let mut parser = SequenceDiagramParser::new();
+        let expected:Vec<Rcc<Element>>=vec![
+            rcc(Element::new("sequencediagram:header")
+                .child(
+                    Element::new("participant")
+                        .attr("alias", "bob")
+                        .child(
+                            Element::new("name")
+                                .child(Element::str("bobby"))
+                        )
+                )
+            ),
+            rcc(Element::new("sequencediagram:content"))
+        ];
 
-    //     let mut slice = SliceWithContext::new_for_tests(&"box \"boxxy\"");
+        assert_eq!(elements, expected);
+    }
 
-    //     let returned = parser.step(&mut slice);
+    #[test]
+    fn test_sequenceparser_header3() {
+        let mut parser = SequenceDiagramParser::new();
 
-    //     assert!(!returned.is_err());
-    //     let (elements, documents) = parser.flush();
-    //     assert_eq!(elements.len(), 2);
+        let mut slice = SliceWithContext::new_for_tests(&"participant \"bobby the 🐶\" as bob");
 
-    //     let expected:Vec<Rc<RefCell<Element>>>=vec![
-    //         Rc::new(RefCell::new(Element{
-    //             tag: String::from("sequencediagram:header"),
-    //             content: ElementContent::Tree(vec![
-    //                 Rc::new(RefCell::new(Element{
-    //                     tag: String::from("box"),
-    //                     content: ElementContent::Tree(vec![
-    //                         Rc::new(RefCell::new(Element{
-    //                             tag: String::from("name"),
-    //                             content: ElementContent::Text(String::from("boxxy")),
-    //                             attributes: vec![],
-    //                         }))
-    //                     ]),
-    //                     attributes: vec![]
-    //                 }))        
-    //             ]),
-    //             attributes: vec![]
-    //         })),
-    //         Rc::new(RefCell::new(Element{
-    //             tag: String::from("sequencediagram:content"),
-    //             content: ElementContent::Tree(vec![]),
-    //             attributes: vec![]
-    //         }))
-    //     ];
-    //     assert_eq!(elements, expected);
-    // }
+        let returned = parser.step(&mut slice);
+        assert!(!returned.is_err());
+        let (elements, _documents) = parser.flush();
+        assert_eq!(elements.len(), 2);
 
-    // #[test]
-    // fn test_sequenceparser_box2() {
-    //     let mut parser = SequenceDiagramParser::new();
+        let expected:Vec<Rcc<Element>>=vec![
+            rcc(Element::new("sequencediagram:header")
+                .child(
+                    Element::new("participant")
+                        .attr("alias", "bob")
+                        .child(
+                            Element::new("name")
+                                .child(Element::str("bobby the 🐶"))
+                        )
+                )
+            ),
+            rcc(Element::new("sequencediagram:content"))
+        ];
 
-    //     {
-    //         let mut slice = SliceWithContext::new_for_tests(&"box \"boxxy\"");
-    //         let returned = parser.step(&mut slice);
-    //         assert!(!returned.is_err());
-    //     }
-    //     {
-    //         let mut slice = SliceWithContext::new_for_tests(&"participant bob");
-    //         let returned = parser.step(&mut slice);
-    //         assert!(!returned.is_err());
-    //     }
-    //     let (elements, documents) = parser.flush();
-    //     assert_eq!(elements.len(), 2);
+        assert_eq!(elements, expected);
+    }
 
-    //     let expected:Vec<Rc<RefCell<Element>>>=vec![
-    //         Rc::new(RefCell::new(Element{
-    //             tag: String::from("sequencediagram:header"),
-    //             content: ElementContent::Tree(vec![
-    //                 Rc::new(RefCell::new(Element{
-    //                     tag: String::from("box"),
-    //                     content: ElementContent::Tree(vec![
-    //                         Rc::new(RefCell::new(Element{
-    //                             tag: String::from("name"),
-    //                             content: ElementContent::Text(String::from("boxxy")),
-    //                             attributes: vec![],
-    //                         })),
-    //                         Rc::new(RefCell::new(Element{
-    //                             tag: String::from("participant"),
-    //                             content: ElementContent::Tree(vec![
-    //                                 Rc::new(RefCell::new(Element{
-    //                                     tag: String::from("name"),
-    //                                     content: ElementContent::Text(String::from("bob")),
-    //                                     attributes: vec![],
-    //                                 }))
-    //                             ]),
-    //                             attributes: vec![
-    //                                 (String::from("alias"), String::from("bob")),
-    //                             ]
-    //                         })) 
-    //                     ]),
-    //                     attributes: vec![]
-    //                 }))        
-    //             ]),
-    //             attributes: vec![]
-    //         })),
-    //         Rc::new(RefCell::new(Element{
-    //             tag: String::from("sequencediagram:content"),
-    //             content: ElementContent::Tree(vec![]),
-    //             attributes: vec![]
-    //         }))
-    //     ];
-    //     assert_eq!(elements, expected);
-    // }
+    #[test]
+    fn test_sequenceparser_header4() {
+        let mut parser = SequenceDiagramParser::new();
 
-    // #[test]
-    // fn test_sequenceparser_box3() {
-    //     let mut parser = SequenceDiagramParser::new();
+        let mut slice = SliceWithContext::new_for_tests(&"actor \"bobby the 🐶\" as bob");
 
-    //     {
-    //         let mut slice = SliceWithContext::new_for_tests(&"box \"boxxy\"");
-    //         let returned = parser.step(&mut slice);
-    //         assert!(!returned.is_err());
-    //     }
-    //     {
-    //         let mut slice = SliceWithContext::new_for_tests(&"end box");
-    //         let returned = parser.step(&mut slice);
-    //         assert!(!returned.is_err());
-    //     }
-    //     {
-    //         let mut slice = SliceWithContext::new_for_tests(&"participant bob");
-    //         let returned = parser.step(&mut slice);
-    //         assert!(!returned.is_err());
-    //     }
-    //     let (elements, documents) = parser.flush();
-    //     assert_eq!(elements.len(), 2);
+        let returned = parser.step(&mut slice);
+        assert!(!returned.is_err());
+        let (elements, _documents) = parser.flush();
+        assert_eq!(elements.len(), 2);
 
-    //     let expected:Vec<Rc<RefCell<Element>>>=vec![
-    //         Rc::new(RefCell::new(Element{
-    //             tag: String::from("sequencediagram:header"),
-    //             content: ElementContent::Tree(vec![
-    //                 Rc::new(RefCell::new(Element{
-    //                     tag: String::from("box"),
-    //                     content: ElementContent::Tree(vec![
-    //                         Rc::new(RefCell::new(Element{
-    //                             tag: String::from("name"),
-    //                             content: ElementContent::Text(String::from("boxxy")),
-    //                             attributes: vec![],
-    //                         })),
-    //                     ]),
-    //                     attributes: vec![]
-    //                 })),
-    //                 Rc::new(RefCell::new(Element{
-    //                     tag: String::from("participant"),
-    //                     content: ElementContent::Tree(vec![
-    //                         Rc::new(RefCell::new(Element{
-    //                             tag: String::from("name"),
-    //                             content: ElementContent::Text(String::from("bob")),
-    //                             attributes: vec![],
-    //                         }))
-    //                     ]),
-    //                     attributes: vec![
-    //                         (String::from("alias"), String::from("bob")),
-    //                     ]
-    //                 }))         
-    //             ]),
-    //             attributes: vec![]
-    //         })),
-    //         Rc::new(RefCell::new(Element{
-    //             tag: String::from("sequencediagram:content"),
-    //             content: ElementContent::Tree(vec![]),
-    //             attributes: vec![]
-    //         }))
-    //     ];
-    //     assert_eq!(elements, expected);
-    // }
 
-    // #[test]
-    // fn test_sequenceparser_message1() {
-    //     let mut parser = SequenceDiagramParser::new();
+        let expected:Vec<Rcc<Element>>=vec![
+            rcc(Element::new("sequencediagram:header")
+                .child(Element::new("actor")
+                    .attr("alias", "bob")
+                    .child(Element::new("name")
+                        .child(Element::str("bobby the 🐶"))
+                    )
+                )
+            ),
+            rcc(Element::new("sequencediagram:content"))
+        ];
 
-    //     {
-    //         let mut slice = SliceWithContext::new_for_tests(&"alice->bob");
-    //         let returned = parser.step(&mut slice);
-    //         assert!(!returned.is_err());
-    //     }
-    //     {
-    //         let mut slice = SliceWithContext::new_for_tests(&"alice<-bob");
-    //         let returned = parser.step(&mut slice);
-    //         assert!(!returned.is_err());
-    //     }
+        assert_eq!(elements, expected);
+    }
 
-    //     let (elements, documents) = parser.flush();
-    //     assert_eq!(elements.len(), 2);
 
-    //     let expected:Vec<Rc<RefCell<Element>>>=vec![
-    //         Rc::new(RefCell::new(Element{
-    //             tag: String::from("sequencediagram:header"),
-    //             content: ElementContent::Tree(vec![
-    //                 Rc::new(RefCell::new(Element{
-    //                     tag: String::from("participant"),
-    //                     content: ElementContent::Tree(vec![
-    //                         Rc::new(RefCell::new(Element{
-    //                             tag: String::from("name"),
-    //                             content: ElementContent::Text(String::from("alice")),
-    //                             attributes: vec![],
-    //                         }))
-    //                     ]),
-    //                     attributes: vec![
-    //                         (String::from("alias"), String::from("alice")),
-    //                     ]
-    //                 })),
-    //                 Rc::new(RefCell::new(Element{
-    //                     tag: String::from("participant"),
-    //                     content: ElementContent::Tree(vec![
-    //                         Rc::new(RefCell::new(Element{
-    //                             tag: String::from("name"),
-    //                             content: ElementContent::Text(String::from("bob")),
-    //                             attributes: vec![],
-    //                         }))
-    //                     ]),
-    //                     attributes: vec![
-    //                         (String::from("alias"), String::from("bob")),
-    //                     ]
-    //                 }))
-    //             ]),
-    //             attributes: vec![]
-    //         })),
-    //         Rc::new(RefCell::new(Element{
-    //             tag: String::from("sequencediagram:content"),
-    //             content: ElementContent::Tree(vec![
-    //                 Rc::new(RefCell::new(Element{
-    //                     tag: String::from("arrow"),
-    //                     content: ElementContent::Tree(vec![]),
-    //                     attributes: vec![
-    //                         (String::from("origin"), String::from("alice")),
-    //                         (String::from("target"), String::from("bob")),
-    //                         (String::from("line-style"), String::from("normal")),
-    //                         (String::from("arrow-style"), String::from("normal")),
-    //                     ]
-    //                 })),
-    //                 Rc::new(RefCell::new(Element{
-    //                     tag: String::from("arrow"),
-    //                     content: ElementContent::Tree(vec![]),
-    //                     attributes: vec![
-    //                         (String::from("target"), String::from("alice")),
-    //                         (String::from("origin"), String::from("bob")),
-    //                         (String::from("line-style"), String::from("normal")),
-    //                         (String::from("arrow-style"), String::from("normal")),
-    //                     ]
-    //                 })),
-    //             ]),
-    //             attributes: vec![]
-    //         }))
-    //     ];
-    //     assert_eq!(elements, expected);
+    #[test]
+    fn test_sequenceparser_box1() {
+        let mut parser = SequenceDiagramParser::new();
 
-    // }
+        let mut slice = SliceWithContext::new_for_tests(&"box \"boxxy\"");
+
+        let returned = parser.step(&mut slice);
+
+        assert!(!returned.is_err());
+        let (elements, _documents) = parser.flush();
+        assert_eq!(elements.len(), 2);
+
+        let expected:Vec<Rcc<Element>>=vec![
+            rcc(Element::new("sequencediagram:header")
+                .child(
+                    Element::new("box")
+                        .child(
+                            Element::new("name")
+                                .child(Element::str("boxxy"))
+                        )
+                )
+            ),
+            rcc(Element::new("sequencediagram:content"))
+        ];
+
+        assert_eq!(elements, expected);
+    }
+
+    #[test]
+    fn test_sequenceparser_box2() {
+        let mut parser = SequenceDiagramParser::new();
+
+        {
+            let mut slice = SliceWithContext::new_for_tests(&"box \"boxxy\"");
+            let returned = parser.step(&mut slice);
+            assert!(!returned.is_err());
+        }
+        {
+            let mut slice = SliceWithContext::new_for_tests(&"participant bob");
+            let returned = parser.step(&mut slice);
+            assert!(!returned.is_err());
+        }
+        let (elements, _documents) = parser.flush();
+        assert_eq!(elements.len(), 2);
+
+
+        let expected:Vec<Rcc<Element>>=vec![
+            rcc(Element::new("sequencediagram:header")
+                .child(
+                    Element::new("box")
+                        .child(Element::new("name")
+                            .child(Element::str("boxxy"))
+                        )
+                        .child(Element::new("participant")
+                            .attr("alias", "bob")
+                            .child(
+                                Element::new("name")
+                                    .child(Element::str("bob"))
+                            )
+                        )
+                )
+            ),
+            rcc(Element::new("sequencediagram:content"))
+        ];
+
+        assert_eq!(elements, expected);
+    }
+
+    #[test]
+    fn test_sequenceparser_box3() {
+        let mut parser = SequenceDiagramParser::new();
+
+        {
+            let mut slice = SliceWithContext::new_for_tests(&"box \"boxxy\"");
+            let returned = parser.step(&mut slice);
+            assert!(!returned.is_err());
+        }
+        {
+            let mut slice = SliceWithContext::new_for_tests(&"end box");
+            let returned = parser.step(&mut slice);
+            assert!(!returned.is_err());
+        }
+        {
+            let mut slice = SliceWithContext::new_for_tests(&"participant bob");
+            let returned = parser.step(&mut slice);
+            assert!(!returned.is_err());
+        }
+        let (elements, _documents) = parser.flush();
+        assert_eq!(elements.len(), 2);
+
+
+        let expected:Vec<Rcc<Element>>=vec![
+            rcc(Element::new("sequencediagram:header")
+                .child(Element::new("box")
+                    .child(Element::new("name")
+                        .child(Element::str("boxxy"))
+                    )        
+                )
+                .child(Element::new("participant")
+                    .attr("alias", "bob")
+                    .child(
+                        Element::new("name")
+                            .child(Element::str("bob"))
+                    )
+                )
+            ),
+            rcc(Element::new("sequencediagram:content"))
+        ];
+
+        assert_eq!(elements, expected);
+    }
+
+    #[test]
+    fn test_sequenceparser_message1() {
+        let mut parser = SequenceDiagramParser::new();
+
+        {
+            let mut slice = SliceWithContext::new_for_tests(&"alice->bob");
+            let returned = parser.step(&mut slice);
+            assert!(!returned.is_err());
+        }
+        {
+            let mut slice = SliceWithContext::new_for_tests(&"alice<-bob");
+            let returned = parser.step(&mut slice);
+            assert!(!returned.is_err());
+        }
+
+        let (elements, _documents) = parser.flush();
+        assert_eq!(elements.len(), 2);
+
+
+        let expected:Vec<Rcc<Element>>=vec![
+            rcc(Element::new("sequencediagram:header")
+                .child(Element::new("participant")
+                    .attr("alias", "alice")
+                    .child(
+                        Element::new("name")
+                            .child(Element::str("alice"))
+                    )
+                )
+                .child(Element::new("participant")
+                    .attr("alias", "bob")
+                    .child(
+                        Element::new("name")
+                            .child(Element::str("bob"))
+                    )
+                )
+            ),
+            rcc(Element::new("sequencediagram:content")
+                .child(Element::new("arrow")
+                    .attr("origin", "alice")
+                    .attr("target", "bob")
+                    .attr("line-style", "normal")
+                    .attr("arrow-style", "normal")                
+                )
+                .child(Element::new("arrow")
+                    .attr("target", "alice")                    
+                    .attr("origin", "bob")
+                    .attr("line-style", "normal")
+                    .attr("arrow-style", "normal")
+                )
+            )
+        ];
+
+        assert_eq!(elements, expected);
+
+    }
 
     // And now for some external tests
 }

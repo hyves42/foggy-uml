@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use std::cell::{RefCell};
-use crate::datatypes::{SliceWithContext, ElementContent, Element, Document};
+use crate::datatypes::{SliceWithContext, Element, Document};
 use crate::parsers::datatypes::{Parser, ParserResult};
 use crate::parseutils::*;
 
@@ -98,7 +98,7 @@ impl Parser for StringParser {
         }
 
         let mut elements = Vec::new();
-        elements.push(Rc::new(RefCell::new(Element::new_str("text", &self.collec.take().unwrap()))));
+        elements.push(Rc::new(RefCell::new(Element::str(&self.collec.take().unwrap()))));
 
 
         return (elements, vec![]);
@@ -113,7 +113,7 @@ impl Parser for StringParser {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::datatypes::{LineWithContext, SliceWithContext};
+    use crate::datatypes::*;
     use std::rc::Rc;
 
     #[test]
@@ -247,7 +247,7 @@ mod tests {
             _ => assert!(false),
         }
 
-        let (elements, documents) = parser.flush();
+        let (elements, _documents) = parser.flush();
         assert_eq!(elements.len(), 1);
         assert_eq!(elements[0].borrow().get_text(), "");
     }

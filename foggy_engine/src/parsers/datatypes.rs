@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use std::cell::{RefCell};
-use crate::datatypes::{SliceWithContext, ElementContent, Element, Document};
+use crate::datatypes::{SliceWithContext, Element, Document};
 
 
 

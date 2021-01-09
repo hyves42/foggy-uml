@@ -106,7 +106,7 @@ impl SequenceDiagramBuilder{
         // other elements are not supported yet. 
         // TODO add support for more complicated text trees with text format
         if !elt.is_text(){
-            return ((0.0, 0.0));
+            return (0.0, 0.0);
         }
 
         let mut max_line_width:usize = 0;
@@ -121,7 +121,7 @@ impl SequenceDiagramBuilder{
                 max_line_width = cmp::max(max_line_width, consumed.len());
                 slice=remaining;
             }
-            if let Ok((remaining, consumed)) = consume_token_in_list(slice, &["\n"]){
+            if let Ok((remaining, _)) = consume_token_in_list(slice, &["\n"]){
                 lines_counter += 1;
                 slice=remaining;
             }
@@ -189,7 +189,7 @@ impl SequenceDiagramBuilder{
         // - text length between participants
         // - height of document
         recurse_element_tree(Rc::clone(&content), 
-            |e, d|{
+            |e, _d|{
                 let elt = e.borrow();
                 // if element is a participant definition
                 if elt.is_tree()
@@ -237,7 +237,7 @@ impl SequenceDiagramBuilder{
         // compute document width
         let mut x = 40.0;
         recurse_element_tree(Rc::clone(&header), 
-            |e, d|{
+            |e, _d|{
                 let elt = e.borrow();
                 if elt.is_tree()
                     && PARTICIPANTS_TYPES.contains(&elt.get_tag().as_str())
@@ -252,16 +252,15 @@ impl SequenceDiagramBuilder{
                 }
             }
         );
-        let mut document_width:f32=x+40.0;
+        let document_width:f32=x+40.0;
 
         let mut xml_stack:Vec<Rc<RefCell<Element>>>=vec![];
-        let mut depth=0;
 
 
         //2nd pass
         // iteratively build svg content
         // Build header
-        let mut document_root=Rc::new(RefCell::new(create_svg(document_width, document_height)));
+        let document_root=Rc::new(RefCell::new(create_svg(document_width, document_height)));
         xml_stack.push(Rc::clone(&document_root));
         {
             let header_g=Rc::new(RefCell::new(create_group(Some("header"))));
@@ -270,7 +269,7 @@ impl SequenceDiagramBuilder{
         }
         // Add participant and boxes
         recurse_element_tree(Rc::clone(&header), 
-            |e, d|{
+            |e, _d|{
                 let elt = e.borrow();
                 // if element is a participant definition
                 if !elt.is_tree(){
@@ -321,7 +320,7 @@ impl SequenceDiagramBuilder{
         }
         let mut y= PARTICIPANT_BOX_HEIGHT;
         recurse_element_tree(Rc::clone(&content), 
-            |e, d|{
+            |e, _d|{
                 let elt = e.borrow();
                 // if element is a participant definition
                 if elt.is_tree()
@@ -334,7 +333,7 @@ impl SequenceDiagramBuilder{
                     let origin_str = origin.unwrap();
                     let target_str = target.unwrap();
 
-                    let (w,h) = Self::estimate_arrow_dimensions(Rc::clone(&e));
+                    let (_w,h) = Self::estimate_arrow_dimensions(Rc::clone(&e));
 
                     let target_x = 
                         if let Some ((_, target_info)) = participants_map.get(target_str.as_str()){
@@ -370,103 +369,61 @@ impl SequenceDiagramBuilder{
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::datatypes::{LineWithContext, SliceWithContext};
+    use crate::datatypes::*;
     use std::rc::Rc;
 
-    // #[test]
-    // fn test_sequencebuilder1() {
+    #[test]
+    fn test_sequencebuilder1() {
 
 
-    //     let elements:Vec<Rc<RefCell<Element>>>=vec![
-    //         Rc::new(RefCell::new(Element{
-    //             tag: String::from("sequencediagram:header"),
-    //             content: ElementContent::Tree(vec![
-    //                 Rc::new(RefCell::new(Element{
-    //                     tag: String::from("participant"),
-    //                     content: ElementContent::Tree(vec![
-    //                         Rc::new(RefCell::new(Element{
-    //                             tag: String::from("name"),
-    //                             content: ElementContent::Text(String::from("alice")),
-    //                             attributes: vec![],
-    //                         }))
-    //                     ]),
-    //                     attributes: vec![
-    //                         (String::from("alias"), String::from("alice")),
-    //                     ]
-    //                 })),
-    //                 Rc::new(RefCell::new(Element{
-    //                     tag: String::from("participant"),
-    //                     content: ElementContent::Tree(vec![
-    //                         Rc::new(RefCell::new(Element{
-    //                             tag: String::from("name"),
-    //                             content: ElementContent::Text(String::from("bob")),
-    //                             attributes: vec![],
-    //                         }))
-    //                     ]),
-    //                     attributes: vec![
-    //                         (String::from("alias"), String::from("bob")),
-    //                     ]
-    //                 }))
-    //             ]),
-    //             attributes: vec![]
-    //         })),
-    //         Rc::new(RefCell::new(Element{
-    //             tag: String::from("sequencediagram:content"),
-    //             content: ElementContent::Tree(vec![
-    //                 Rc::new(RefCell::new(Element{
-    //                     tag: String::from("arrow"),
-    //                     content: ElementContent::Tree(vec![
-    //                         Rc::new(RefCell::new(Element{
-    //                             tag: String::from("text"),
-    //                             content: ElementContent::Text(String::from("Hello")), 
-    //                             attributes: vec![] 
-    //                         }))
-    //                     ]),
-    //                     attributes: vec![
-    //                         (String::from("origin"), String::from("alice")),
-    //                         (String::from("target"), String::from("bob")),
-    //                         (String::from("line-style"), String::from("normal")),
-    //                         (String::from("arrow-style"), String::from("normal")),
-    //                     ]
-    //                 })),
-    //                 Rc::new(RefCell::new(Element{
-    //                     tag: String::from("arrow"),
-    //                     content: ElementContent::Tree(vec![
-    //                         Rc::new(RefCell::new(Element{
-    //                             tag: String::from("text"),
-    //                             content: ElementContent::Text(String::from("Yo !")), 
-    //                             attributes: vec![] 
-    //                         }))
-    //                     ]),
-    //                     attributes: vec![
-    //                         (String::from("target"), String::from("alice")),
-    //                         (String::from("origin"), String::from("bob")),
-    //                         (String::from("line-style"), String::from("normal")),
-    //                         (String::from("arrow-style"), String::from("normal")),
-    //                     ]
-    //                 })),
-    //                 Rc::new(RefCell::new(Element{
-    //                     tag: String::from("arrow"),
-    //                     content: ElementContent::Tree(vec![]),
-    //                     attributes: vec![
-    //                         (String::from("target"), String::from("alice")),
-    //                         (String::from("origin"), String::from("bob")),
-    //                         (String::from("line-style"), String::from("normal")),
-    //                         (String::from("arrow-style"), String::from("normal")),
-    //                     ]
-    //                 })),
-    //             ]),
-    //             attributes: vec![]
-    //         }))
-    //     ];
+        let elements:Vec<Rcc<Element>>=vec![
+            rcc(Element::new("sequencediagram:header")
+                .child(Element::new("participant")
+                    .attr("alias", "alice")
+                    .child(
+                        Element::new("name")
+                            .child(Element::str("alice"))
+                    )
+                )
+                .child(Element::new("participant")
+                    .attr("alias", "bob")
+                    .child(
+                        Element::new("name")
+                            .child(Element::str("bob"))
+                    )
+                )
+            ),
+            rcc(Element::new("sequencediagram:content")
+                .child(Element::new("arrow")
+                    .attr("origin", "alice")
+                    .attr("target", "bob")
+                    .attr("line-style", "normal")
+                    .attr("arrow-style", "normal")                
+                )
+                .child(Element::new("arrow")
+                    .attr("target", "alice")                    
+                    .attr("origin", "bob")
+                    .attr("line-style", "normal")
+                    .attr("arrow-style", "normal")
+                )
+                .child(Element::new("arrow")
+                    .attr("target", "alice")                    
+                    .attr("origin", "bob")
+                    .attr("line-style", "normal")
+                    .attr("arrow-style", "normal")
+                )
+            )
+        ];
+
+
         
-    //     let mut builder = SequenceDiagramBuilder::new();
+        let mut builder = SequenceDiagramBuilder::new();
 
-    //     let xml = builder.generate_svg(&elements);
-    //     assert!(!xml.is_err());
-    //     if let Ok(s) = xml{
-    //         println!("{}", s);
-    //     }
-    // }
+        let xml = builder.generate_svg(&elements);
+        assert!(!xml.is_err());
+        if let Ok(s) = xml{
+            println!("{}", s);
+        }
+    }
 
 }
