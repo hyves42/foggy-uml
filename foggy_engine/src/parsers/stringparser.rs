@@ -98,7 +98,7 @@ impl Parser for StringParser {
         }
 
         let mut elements = Vec::new();
-        elements.push(Rc::new(RefCell::new(Element::new_string("text", self.collec.take().unwrap()))));
+        elements.push(Rc::new(RefCell::new(Element::new_str("text", &self.collec.take().unwrap()))));
 
 
         return (elements, vec![]);
@@ -113,7 +113,7 @@ impl Parser for StringParser {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use datatypes::{LineWithContext, SliceWithContext};
+    use crate::datatypes::{LineWithContext, SliceWithContext};
     use std::rc::Rc;
 
     #[test]
