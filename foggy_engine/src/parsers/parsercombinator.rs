@@ -1,6 +1,5 @@
-use crate::datatypes::{LineWithContext, Document};
+use crate::datatypes::{Document, LineWithContext};
 //use parsers::stringparser::StringParser;
-
 
 struct ParserCombinator {}
 

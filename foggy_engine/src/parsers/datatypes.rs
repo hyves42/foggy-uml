@@ -1,9 +1,6 @@
+use crate::datatypes::{Document, Element, SliceWithContext};
+use std::cell::RefCell;
 use std::rc::Rc;
-use std::cell::{RefCell};
-use crate::datatypes::{SliceWithContext, Element, Document};
-
-
-
 
 pub enum ParserResult<'a> {
     Busy,                              // then feed with new line
@@ -16,7 +13,7 @@ pub enum ParserResult<'a> {
 }
 
 pub trait Parser {
-	// feed the parser line by line
+    // feed the parser line by line
     fn step<'a>(
         &mut self,
         input: &'a mut SliceWithContext<'a>,

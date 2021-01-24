@@ -1,2 +1,2 @@
-pub mod svgbuilder;
 pub mod sequencebuilder;
+pub mod svgbuilder;

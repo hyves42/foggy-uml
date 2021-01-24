@@ -1,8 +1,8 @@
-use std::rc::Rc;
-use std::cell::{RefCell};
-use crate::datatypes::{SliceWithContext, Element, Document};
+use crate::datatypes::{Document, Element, SliceWithContext};
 use crate::parsers::datatypes::{Parser, ParserResult};
 use crate::parseutils::*;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 pub struct StringParser {
     collec: Option<String>,
@@ -17,9 +17,9 @@ impl StringParser {
     }
 
     pub fn is_start_word(input: &str) -> bool {
-        match consume_token_in_list(input, Self::get_start_words()){
-            Ok(_)=> return true,
-            Err(_) => return false
+        match consume_token_in_list(input, Self::get_start_words()) {
+            Ok(_) => return true,
+            Err(_) => return false,
         }
     }
     pub fn get_start_words() -> &'static [&'static str] {
@@ -56,8 +56,7 @@ impl Parser for StringParser {
         while slice.len() > 0 {
             let stop_tokens = ["\\", &self.start_token.as_str()];
 
-            let (new_slice, consumed) =
-                consume_until_token_in_list(slice, &stop_tokens).unwrap();
+            let (new_slice, consumed) = consume_until_token_in_list(slice, &stop_tokens).unwrap();
             self.collec.as_mut().unwrap().push_str(consumed);
             slice = new_slice;
 
@@ -98,17 +97,13 @@ impl Parser for StringParser {
         }
 
         let mut elements = Vec::new();
-        elements.push(Rc::new(RefCell::new(Element::str(&self.collec.take().unwrap()))));
-
+        elements.push(Rc::new(RefCell::new(Element::str(
+            &self.collec.take().unwrap(),
+        ))));
 
         return (elements, vec![]);
     }
 }
-
-
-
-
-
 
 #[cfg(test)]
 mod tests {
@@ -251,6 +246,4 @@ mod tests {
         assert_eq!(elements.len(), 1);
         assert_eq!(elements[0].borrow().get_text(), "");
     }
-
-
 }
