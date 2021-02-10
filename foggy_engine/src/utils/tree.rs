@@ -72,7 +72,7 @@ impl<T> TreeContainer<T> {
     //           y       y--z        a--y--z
     // Add a child a the given index.
     // Panics if pos is > the number of children or if parent does not exist
-    pub fn add_child(&mut self, parent: usize, pos: usize, t: T) -> usize {
+    pub fn add_child(&mut self, parent: usize, pos: usize, t: T) -> Result<usize,&str> {
         if !self._has_child(parent) {
             // case A
             if pos > 0 {
@@ -81,17 +81,17 @@ impl<T> TreeContainer<T> {
             // Insert the first child
             let node = TreeNode::new(t).parent(parent);
             let new_id = self.flat.len();
-            if let Some(p) = self.flat.get_mut(parent).unwrap() {
+            if let Some(p) = self.flat.get_mut(parent).ok_or("").unwrap() {
                 p.first_child = Some(new_id);
                 self.flat.push(Some(node));
             } else {
                 panic!();
             }
-            return new_id;
+            return Ok(new_id);
         } else {
             if pos > 0{
                 // case B
-                let left_id = self._nth_child_id(parent, pos-1);
+                let left_id = self._nth_child_id(parent, pos-1).ok_or("").unwrap();
                 let new_id = self.flat.len();
                 let mut node = TreeNode::new(t).parent(parent).sibling_left(left_id);
                 let mut right_id: Option<usize> = None;
@@ -111,29 +111,29 @@ impl<T> TreeContainer<T> {
                     }
                 }
                 self.flat.push(Some(node)); 
-                return new_id;
+                return Ok(new_id);
             }
             else{
                 // case C
                 // Insert the child at 1st position
                 let new_id = self.flat.len();
-                let right_id = self._first_child_id(parent);
+                let right_id = self._first_child_id(parent).ok_or("").unwrap();
                 let node = TreeNode::new(t).parent(parent).sibling_right(right_id);
 
-                if let Some(p) = self.flat.get_mut(parent).unwrap() {
+                if let Some(p) = self.flat.get_mut(parent).ok_or("").unwrap() {
                     p.first_child = Some(new_id);
                     self.flat.push(Some(node));
                 } else {
                     panic!();
                 }
 
-                if let Some(r) = self.flat.get_mut(right_id).unwrap() {
+                if let Some(r) = self.flat.get_mut(right_id).ok_or("").unwrap() {
                     r.sibling_left = Some(new_id);
                 } else {
                     panic!();
                 }
 
-                return new_id;
+                return Ok(new_id);
             }
         }
     }
@@ -189,7 +189,7 @@ impl<T> TreeContainer<T> {
 
         while let Some(fragment) = iter.next() {
             if let Ok(i) = fragment {
-                if let Some(c) = self._nth_child_id_try(cursor, i) {
+                if let Some(c) = self._nth_child_id(cursor, i) {
                     cursor = c;
                 }
                 else {
@@ -205,11 +205,13 @@ impl<T> TreeContainer<T> {
 
     // path is a string of form "0:12:4:1..."
     pub fn by_path(&self, path: &str) -> Option<&T> {
-        return None
+        let id = self.id_by_path(path)?;
+        return self.get(id);
     }
 
     pub fn by_path_mut(&mut self, path: &str) -> Option<&mut T> {
-        return None
+        let id = self.id_by_path(path)?;
+        return self.get_mut(id);
     }
 
     fn _get_node(&self, id: usize) -> Option<&TreeNode<T>> {
@@ -230,39 +232,16 @@ impl<T> TreeContainer<T> {
         }
     }
 
-    // panics if id does not exist
-    fn _first_child_id(&self, id: usize) -> usize {
-        if let Some(n) = self.flat.get(id).unwrap() {
-            return n.first_child.unwrap();
+    fn _first_child_id(&self, id: usize) -> Option<usize> {
+        if let Some(n) = self.flat.get(id)? {
+            n.first_child
         } else {
-            panic!();
-        }
-    }
-    // panics if id does not exist
-    fn _nth_child_id(&self, id: usize, offset: usize) -> usize {
-        if let Some(n) = self.flat.get(id).unwrap() {
-            let mut cur = n.first_child.unwrap();
-            let mut cnt = 0;
-
-            while cnt < offset {
-                if let Some(node) = self.flat.get(cur).unwrap() {
-                    cur = node.sibling_right.unwrap();
-                } else {
-                    panic!();
-                }
-                cnt += 1;
-            }
-
-            return cur;
-        } else {
-            panic!();
+            None
         }
     }
 
-
-    // panics if id does not exist
-    fn _nth_child_id_try(&self, id: usize, offset: usize) -> Option<usize> {
-        if let Some(n) = self.flat.get(id).unwrap() {
+    fn _nth_child_id(&self, id: usize, offset: usize) -> Option<usize> {
+        if let Some(n) = self.flat.get(id)? {
             let mut cur = n.first_child?;
             let mut cnt = 0;
 
@@ -281,26 +260,25 @@ impl<T> TreeContainer<T> {
         }
     }
 
-    // panics if id does not exist
-    fn _last_child_id(&self, id: usize) -> usize {
-        if let Some(n) = self.flat.get(id).unwrap() {
-            let mut cur = n.first_child.unwrap();
+    fn _last_child_id(&self, id: usize) -> Option<usize> {
+        if let Some(n) = self.flat.get(id)? {
+            let mut cur = n.first_child?;
 
             loop {
-                if let Some(node) = self.flat.get(cur).unwrap() {
+                if let Some(node) = self.flat.get(cur)? {
                     if let Some(sibling) = node.sibling_right {
                         cur = sibling;
                     } else {
-                        return cur;
+                        return Some(cur);
                     }
                 } else {
-                    panic!();
+                    return None;
                 }
             }
 
-            panic!();
+            return None;
         } else {
-            panic!();
+            return None;
         }
     }
 }
@@ -444,12 +422,12 @@ mod tests {
 
         assert_eq!(*cont.get(root_id).unwrap(), 32412345);
 
-        let child_id = cont.add_child(root_id, 0, 834576098);
+        let child_id = cont.add_child(root_id, 0, 834576098).unwrap();
         assert_eq!(*cont.get(child_id).unwrap(), 834576098);
 
-        assert_eq!(child_id, cont._first_child_id(root_id));
-        assert_eq!(child_id, cont._last_child_id(root_id));
-        assert_eq!(child_id, cont._nth_child_id(root_id, 0));
+        assert_eq!(Some(child_id), cont._first_child_id(root_id));
+        assert_eq!(Some(child_id), cont._last_child_id(root_id));
+        assert_eq!(Some(child_id), cont._nth_child_id(root_id, 0));
         assert_eq!(cont._get_node(child_id).unwrap().sibling_left, None);
         assert_eq!(cont._get_node(child_id).unwrap().sibling_right, None);
         assert_eq!(cont._get_node(child_id).unwrap().parent, Some(root_id));
@@ -459,31 +437,31 @@ mod tests {
     fn add_children() {
         let mut cont: TreeContainer<i64> = TreeContainer::new();
         let root_id = cont.add_root(32412345);
-        let child1_id = cont.add_child(root_id, 0, 834576098);
+        let child1_id = cont.add_child(root_id, 0, 834576098).unwrap();
 
 
-        let child2_id = cont.add_child(root_id, 1, 908720349875);
+        let child2_id = cont.add_child(root_id, 1, 908720349875).unwrap();
         assert_eq!(*cont.get(child2_id).unwrap(), 908720349875);
-        assert_eq!(child2_id, cont._nth_child_id(root_id, 1));
+        assert_eq!(Some(child2_id), cont._nth_child_id(root_id, 1));
         assert_eq!(cont._get_node(child2_id).unwrap().sibling_left, Some(child1_id));
         assert_eq!(cont._get_node(child2_id).unwrap().sibling_right, None);
 
         assert_eq!(cont._get_node(child2_id).unwrap().parent, Some(root_id));
 
 
-        let child3_id = cont.add_child(root_id, 1, 304958);
+        let child3_id = cont.add_child(root_id, 1, 304958).unwrap();
         assert_eq!(*cont.get(child3_id).unwrap(), 304958);
-        assert_eq!(child3_id, cont._nth_child_id(root_id, 1));
-        assert_eq!(child2_id, cont._nth_child_id(root_id, 2));
+        assert_eq!(Some(child3_id), cont._nth_child_id(root_id, 1));
+        assert_eq!(Some(child2_id), cont._nth_child_id(root_id, 2));
         assert_eq!(cont._get_node(child3_id).unwrap().sibling_left, Some(child1_id));
         assert_eq!(cont._get_node(child2_id).unwrap().sibling_left, Some(child3_id));
         assert_eq!(cont._get_node(child3_id).unwrap().sibling_right, Some(child2_id));
         assert_eq!(cont._get_node(child3_id).unwrap().parent, Some(root_id));
 
-        let child4_id = cont.add_child(root_id, 0, 452579);
+        let child4_id = cont.add_child(root_id, 0, 452579).unwrap();
         assert_eq!(*cont.get(child4_id).unwrap(), 452579);
-        assert_eq!(child1_id, cont._nth_child_id(root_id, 1));
-        assert_eq!(child4_id, cont._nth_child_id(root_id, 0));
+        assert_eq!(Some(child1_id), cont._nth_child_id(root_id, 1));
+        assert_eq!(Some(child4_id), cont._nth_child_id(root_id, 0));
         assert_eq!(cont._get_node(child4_id).unwrap().sibling_left, None);
         assert_eq!(cont._get_node(child1_id).unwrap().sibling_left, Some(child4_id));
         assert_eq!(cont._get_node(child4_id).unwrap().sibling_right, Some(child1_id));
@@ -494,9 +472,9 @@ mod tests {
     fn test_path() {
         let mut cont: TreeContainer<i64> = TreeContainer::new();
         let root_id = cont.add_root(32412345);
-        let id1 = cont.add_child(root_id, 0, 65874567);
-        let id2 = cont.add_child(root_id, 1, 267869890);
-        let id3 = cont.add_child(id2, 0, 3454);
+        let id1 = cont.add_child(root_id, 0, 65874567).unwrap();
+        let id2 = cont.add_child(root_id, 1, 267869890).unwrap();
+        let id3 = cont.add_child(id2, 0, 3454).unwrap();
 
         assert_eq!(cont.id_by_path("0"), Some(root_id));
         assert_eq!(cont.id_by_path("0:0"), Some(id1));
