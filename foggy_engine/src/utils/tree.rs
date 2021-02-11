@@ -1,22 +1,27 @@
 // A tree structure allocated in the same contiguous memory region
 // allocated memory can only grow, there is no freeing mechanism
 
+
+pub type NodeId = usize;
+
 #[derive(Debug, PartialEq, Default)]
-pub struct TreeNode<T> {
-    pub parent: Option<usize>,
-    pub first_child: Option<usize>,
-    pub sibling_left: Option<usize>,
-    pub sibling_right: Option<usize>,
+struct TreeNode<T> {
+    pub parent: Option<NodeId>,
+    pub first_child: Option<NodeId>,
+    pub sibling_left: Option<NodeId>,
+    pub sibling_right: Option<NodeId>,
     pub data: T,
 }
+
+
 
 #[derive(Debug, PartialEq, Default)]
 pub struct TreeContainer<T> {
     // nodes organized as a tree
-    pub root: Option<usize>,
+    root: Option<NodeId>,
     // Flat list of all the nodes
     // It is allowed to have elements in this flat list that are not present in
-    pub flat: Vec<Option<TreeNode<T>>>,
+    flat: Vec<Option<TreeNode<T>>>,
 }
 
 impl<T> TreeNode<T> {
@@ -30,22 +35,22 @@ impl<T> TreeNode<T> {
         }
     }
 
-    pub fn parent(mut self, parent: usize) -> Self {
+    pub fn with_parent(mut self, parent: usize) -> Self {
         self.parent = Some(parent);
         return self;
     }
 
-    pub fn first_child(mut self, child: usize) -> Self {
+    pub fn with_first_child(mut self, child: usize) -> Self {
         self.first_child = Some(child);
         return self;
     }
 
-    pub fn sibling_left(mut self, left: usize) -> Self {
+    pub fn with_sibling_left(mut self, left: usize) -> Self {
         self.sibling_left = Some(left);
         return self;
     }
 
-    pub fn sibling_right(mut self, right: usize) -> Self {
+    pub fn with_sibling_right(mut self, right: usize) -> Self {
         self.sibling_right = Some(right);
         return self;
     }
@@ -59,7 +64,7 @@ impl<T> TreeContainer<T> {
         }
     }
 
-    pub fn add_root(&mut self, t: T) -> usize {
+    pub fn add_root(&mut self, t: T) -> NodeId {
         let n = TreeNode::new(t);
         self.flat.push(Some(n));
         let idx = self.flat.len() - 1;
@@ -72,14 +77,14 @@ impl<T> TreeContainer<T> {
     //           y       y--z        a--y--z
     // Add a child a the given index.
     // Panics if pos is > the number of children or if parent does not exist
-    pub fn add_child(&mut self, parent: usize, pos: usize, t: T) -> Result<usize,&str> {
+    pub fn add_child(&mut self, parent: NodeId, pos: usize, t: T) -> Result<NodeId,&str> {
         if !self._has_child(parent) {
             // case A
             if pos > 0 {
                 panic!();
             }
             // Insert the first child
-            let node = TreeNode::new(t).parent(parent);
+            let node = TreeNode::new(t).with_parent(parent);
             let new_id = self.flat.len();
             if let Some(p) = self.flat.get_mut(parent).ok_or("").unwrap() {
                 p.first_child = Some(new_id);
@@ -93,7 +98,7 @@ impl<T> TreeContainer<T> {
                 // case B
                 let left_id = self._nth_child_id(parent, pos-1).ok_or("").unwrap();
                 let new_id = self.flat.len();
-                let mut node = TreeNode::new(t).parent(parent).sibling_left(left_id);
+                let mut node = TreeNode::new(t).with_parent(parent).with_sibling_left(left_id);
                 let mut right_id: Option<usize> = None;
                 
 
@@ -118,7 +123,7 @@ impl<T> TreeContainer<T> {
                 // Insert the child at 1st position
                 let new_id = self.flat.len();
                 let right_id = self._first_child_id(parent).ok_or("").unwrap();
-                let node = TreeNode::new(t).parent(parent).sibling_right(right_id);
+                let node = TreeNode::new(t).with_parent(parent).with_sibling_right(right_id);
 
                 if let Some(p) = self.flat.get_mut(parent).ok_or("").unwrap() {
                     p.first_child = Some(new_id);
@@ -138,24 +143,63 @@ impl<T> TreeContainer<T> {
         }
     }
 
+
     // Push a child at the last available position
-    pub fn push_child(&mut self, parent: usize, t: T) -> usize {
-        return 0;
+    pub fn push_child(&mut self, parent: NodeId, t: T) -> Result<NodeId,&str>  {
+        if !self._has_child(parent) {
+            // Insert the first child
+            let node = TreeNode::new(t).with_parent(parent);
+            let new_id = self.flat.len();
+            if let Some(p) = self.flat.get_mut(parent).ok_or("").unwrap() {
+                p.first_child = Some(new_id);
+                self.flat.push(Some(node));
+            } else {
+                panic!();
+            }
+            return Ok(new_id);
+        } else {
+            // Push child at the end of list
+            let left_id = self._last_child_id(parent).ok_or("").unwrap();
+            let new_id = self.flat.len();
+            let mut node = TreeNode::new(t).with_parent(parent).with_sibling_left(left_id);
+            
+
+            if let Some(l) = self.flat.get_mut(left_id).unwrap() {
+                l.sibling_right = Some(new_id);
+            } else {
+                panic!();
+            }
+
+            self.flat.push(Some(node)); 
+            return Ok(new_id); 
+        }
+    }
+
+
+    // unplug a node from the tree structure but keep the node and its children in storage
+    pub fn unplug(&mut self, node:NodeId) -> Result<NodeId, &str>{
+        return Err("Not implemented");
+    }
+
+    // plug a node that already exists in the tree structure at a new place
+    // The node must not be part of the tree struct, i.e.it must not have a parent
+    pub fn replug(&mut self, node:NodeId, parent:NodeId, position:usize) -> Result<NodeId, &str>{
+        return Err("Not implemented");
     }
 
     // Prepend a sibling node
     // Does not work on root
-    pub fn prepend(&mut self, sibling: usize, t: T) -> usize {
+    pub fn prepend(&mut self, sibling: NodeId, t: T) -> NodeId {
         return 0;
     }
 
     // Append a sibling node
     // Does not work on root
-    pub fn append(&mut self, sibling: usize, t: T) -> usize {
+    pub fn append(&mut self, sibling: NodeId, t: T) -> NodeId {
         return 0;
     }
 
-    pub fn get(&self, id: usize) -> Option<&T> {
+    pub fn get(&self, id: NodeId) -> Option<&T> {
         let c = self.flat.get(id)?;
         match c {
             None => None,
@@ -163,7 +207,7 @@ impl<T> TreeContainer<T> {
         }
     }
 
-    pub fn get_mut(&mut self, id: usize) -> Option<&mut T> {
+    pub fn get_mut(&mut self, id: NodeId) -> Option<&mut T> {
         let c = self.flat.get_mut(id)?;
         match c {
             None => None,
@@ -176,7 +220,7 @@ impl<T> TreeContainer<T> {
     // "0" is the root
     // "0:1" is the first child of the root
     // etc.
-    pub fn id_by_path(&self, path: &str) -> Option<usize> {
+    pub fn id_by_path(&self, path: &str) -> Option<NodeId> {
         let mut iter = path.split(':').map(|i| usize::from_str_radix(i, 10));
 
         // First fragment must be '0'
@@ -203,6 +247,32 @@ impl<T> TreeContainer<T> {
         return Some(cursor);
     }
 
+    pub fn for_each_child<F>(&self, parent:NodeId, mut f: F)
+    where
+        F: FnMut(&T),
+    {
+        if let Some(node) = self._get_node(parent){
+            let mut next: Option<NodeId> = node.first_child;
+            while let Some(cur_id) = next{
+                f(self.get(cur_id).unwrap());
+                next = self._get_node(cur_id).unwrap().sibling_right;
+            }
+        }
+    }
+
+    pub fn for_each_child_mut<F>(&mut self, parent:NodeId, mut f: F)
+    where
+        F: FnMut(&mut T),
+    {
+        if let Some(node) = self._get_node(parent){
+            let mut next: Option<NodeId> = node.first_child;
+            while let Some(cur_id) = next{
+                f(self.get_mut(cur_id).unwrap());
+                next = self._get_node(cur_id).unwrap().sibling_right;
+            }
+        }
+    }
+
     // path is a string of form "0:12:4:1..."
     pub fn by_path(&self, path: &str) -> Option<&T> {
         let id = self.id_by_path(path)?;
@@ -214,7 +284,15 @@ impl<T> TreeContainer<T> {
         return self.get_mut(id);
     }
 
-    fn _get_node(&self, id: usize) -> Option<&TreeNode<T>> {
+    // Store a new node and return its id. The node will be floating
+    fn _new_id(&mut self, t:T) -> NodeId {
+        let node = TreeNode::new(t);
+        let new_id = self.flat.len();
+        self.flat.push(Some(node));
+        return new_id;      
+    }
+
+    fn _get_node(&self, id: NodeId) -> Option<&TreeNode<T>> {
         let c = self.flat.get(id)?;
         match c {
             None => None,
@@ -224,7 +302,7 @@ impl<T> TreeContainer<T> {
 
 
     // panics if id does not exist
-    fn _has_child(&self, id: usize) -> bool {
+    fn _has_child(&self, id: NodeId) -> bool {
         if let Some(n) = self.flat.get(id).unwrap() {
             return n.first_child.is_some();
         } else {
@@ -232,7 +310,7 @@ impl<T> TreeContainer<T> {
         }
     }
 
-    fn _first_child_id(&self, id: usize) -> Option<usize> {
+    fn _first_child_id(&self, id: NodeId) -> Option<NodeId> {
         if let Some(n) = self.flat.get(id)? {
             n.first_child
         } else {
@@ -240,7 +318,7 @@ impl<T> TreeContainer<T> {
         }
     }
 
-    fn _nth_child_id(&self, id: usize, offset: usize) -> Option<usize> {
+    fn _nth_child_id(&self, id: NodeId, offset: usize) -> Option<NodeId> {
         if let Some(n) = self.flat.get(id)? {
             let mut cur = n.first_child?;
             let mut cnt = 0;
@@ -260,7 +338,7 @@ impl<T> TreeContainer<T> {
         }
     }
 
-    fn _last_child_id(&self, id: usize) -> Option<usize> {
+    fn _last_child_id(&self, id: NodeId) -> Option<NodeId> {
         if let Some(n) = self.flat.get(id)? {
             let mut cur = n.first_child?;
 
@@ -284,105 +362,6 @@ impl<T> TreeContainer<T> {
 }
 
 
-
-//     pub fn by_id(&self, id: u64) -> Result<Rcc<TreeLayoutElement>, &str> {
-//         return Err("");
-//     }
-
-//     // // insert new element as a sibling of path
-//     // horizontalInsert(element, path){
-//     //   // find parent
-//     //   const fragments = path.split(':');
-//     //   if (fragments.length<2) return false;
-//     //   let parentPath = fragments.slice(0,fragments.length-1).join(':');
-
-//     //   let parent = this.byPath(parentPath);
-//     //   if (parent == null) return false;
-
-//     //   //insert at the right place in parent array
-//     //   let index = parseInt(fragments[fragments.length-1], 10);
-//     //   //index can be equal to length if I want to insert at the end of array
-//     //   if (index == NaN || index<0 || index > parent.children.length){
-//     //     return false;
-//     //   }
-//     //   parent.children.splice(index, 0, element);
-//     //   return true;
-//     // }
-
-//     // // insert new element as a parent of path
-//     // verticalInsert(element, path){
-//     //   // special case for root which has no parent
-//     //   if (path == '0'){
-//     //     return this._verticalInsertRoot(element);
-//     //   }
-//     //   // find parent
-//     //   const fragments = path.split(':');
-//     //   if (fragments.length<2) return false;
-//     //   let parentPath = fragments.slice(0,fragments.length-1).join(':');
-
-//     //   let parent = this.byPath(parentPath);
-//     //   let original = this.byPath(path);
-//     //   if (parent == null || original == null || element == null) return false;
-
-//     //   //insert at the right place in parent array
-//     //   let index = parseInt(fragments[fragments.length-1], 10);
-//     //   if (index == NaN || index<0 || index >= parent.children.length){
-//     //     return false;
-//     //   }
-//     //   element.children.push(original);
-//     //   parent.children.splice(index, 1, element);
-//     //   return true;
-//     // }
-
-//     // _verticalInsertRoot(element){
-//     //   if (element == null) return false;
-//     //   element.children.push(this.root);
-//     //   this.root = element;
-//     //   return true;
-//     // }
-
-//     // remove(path){
-//     //   // find parent
-//     //   const fragments = path.split(':');
-//     //   if (fragments.length<2) return false;
-//     //   let parentPath = fragments.slice(0,fragments.length-1).join(':');
-
-//     //   let parent = this.byPath(parentPath);
-//     //   let original = this.byPath(path);
-//     //   if (parent == null || original == null) return false;
-
-//     //   //delete at the right place in parent array
-//     //   let index = parseInt(fragments[fragments.length-1], 10);
-//     //   if (index == NaN || index<0 || index >= parent.children.length){
-//     //     return false;
-//     //   }
-//     //   parent.children.splice(index, 1);
-//     //   return original;
-//     // }
-
-//     // move(origin, target){
-//     //   //todo check that destination exists
-//     //   original = this.remove(origin);
-//     //   if (original == false) return false;
-
-//     //   return this.horizontalInsert(element, path);
-//     // }
-
-//     // newElement(){
-//     //   return { children: [] };
-//     // }
-
-//     // _forEach(element, path, f){
-//     //   f(element, path);
-//     //   var i=0
-//     //   element.children.forEach(e => {this._forEach(e, path+':'+i, f); i++});
-//     // }
-
-//     // // call function f(elt, path) on each element of the tree
-//     // forEach(f) {
-//     //   this._forEach(this.root, '0', f);
-//     // }
-// }
 
 #[cfg(test)]
 mod tests {
@@ -425,9 +404,11 @@ mod tests {
         let child_id = cont.add_child(root_id, 0, 834576098).unwrap();
         assert_eq!(*cont.get(child_id).unwrap(), 834576098);
 
+        // assumptions about the internal API
         assert_eq!(Some(child_id), cont._first_child_id(root_id));
         assert_eq!(Some(child_id), cont._last_child_id(root_id));
         assert_eq!(Some(child_id), cont._nth_child_id(root_id, 0));
+        // assumptions about the data structure
         assert_eq!(cont._get_node(child_id).unwrap().sibling_left, None);
         assert_eq!(cont._get_node(child_id).unwrap().sibling_right, None);
         assert_eq!(cont._get_node(child_id).unwrap().parent, Some(root_id));
@@ -442,7 +423,9 @@ mod tests {
 
         let child2_id = cont.add_child(root_id, 1, 908720349875).unwrap();
         assert_eq!(*cont.get(child2_id).unwrap(), 908720349875);
+        // assumptions about the internal API
         assert_eq!(Some(child2_id), cont._nth_child_id(root_id, 1));
+        // assumptions about the data structure
         assert_eq!(cont._get_node(child2_id).unwrap().sibling_left, Some(child1_id));
         assert_eq!(cont._get_node(child2_id).unwrap().sibling_right, None);
 
@@ -451,8 +434,10 @@ mod tests {
 
         let child3_id = cont.add_child(root_id, 1, 304958).unwrap();
         assert_eq!(*cont.get(child3_id).unwrap(), 304958);
+        // assumptions about the internal API
         assert_eq!(Some(child3_id), cont._nth_child_id(root_id, 1));
         assert_eq!(Some(child2_id), cont._nth_child_id(root_id, 2));
+        // assumptions about the data structure
         assert_eq!(cont._get_node(child3_id).unwrap().sibling_left, Some(child1_id));
         assert_eq!(cont._get_node(child2_id).unwrap().sibling_left, Some(child3_id));
         assert_eq!(cont._get_node(child3_id).unwrap().sibling_right, Some(child2_id));
@@ -460,13 +445,67 @@ mod tests {
 
         let child4_id = cont.add_child(root_id, 0, 452579).unwrap();
         assert_eq!(*cont.get(child4_id).unwrap(), 452579);
+        // assumptions about the internal API
         assert_eq!(Some(child1_id), cont._nth_child_id(root_id, 1));
         assert_eq!(Some(child4_id), cont._nth_child_id(root_id, 0));
+        // assumptions about the data structure
         assert_eq!(cont._get_node(child4_id).unwrap().sibling_left, None);
         assert_eq!(cont._get_node(child1_id).unwrap().sibling_left, Some(child4_id));
         assert_eq!(cont._get_node(child4_id).unwrap().sibling_right, Some(child1_id));
         assert_eq!(cont._get_node(child4_id).unwrap().parent, Some(root_id));
     }
+
+
+    #[test]
+    fn push_children() {
+        let mut cont: TreeContainer<i64> = TreeContainer::new();
+        let root_id = cont.add_root(32412345);
+        let child1_id = cont.push_child(root_id, 834576098).unwrap();
+        assert_eq!(*cont.get(child_id).unwrap(), 834576098);
+
+        // assumptions about the internal API
+        assert_eq!(Some(child1_id), cont._first_child_id(root_id));
+        assert_eq!(Some(child1_id), cont._last_child_id(root_id));
+        assert_eq!(Some(child1_id), cont._nth_child_id(root_id, 0));
+        // assumptions about the data structure
+        assert_eq!(cont._get_node(child1_id).unwrap().sibling_left, None);
+        assert_eq!(cont._get_node(child1_id).unwrap().sibling_right, None);
+        assert_eq!(cont._get_node(child1_id).unwrap().parent, Some(root_id));
+
+
+        let child2_id = cont.push_child(root_id, 908720349875).unwrap();
+        assert_eq!(*cont.get(child2_id).unwrap(), 908720349875);
+        // assumptions about the internal API
+        assert_eq!(Some(child2_id), cont._nth_child_id(root_id, 1));
+        // assumptions about the data structure
+        assert_eq!(cont._get_node(child2_id).unwrap().sibling_left, Some(child1_id));
+        assert_eq!(cont._get_node(child2_id).unwrap().sibling_right, None);
+        assert_eq!(cont._get_node(child2_id).unwrap().parent, Some(root_id));
+        assert_eq!(cont._get_node(child1_id).unwrap().sibling_right, Some(child2_id));
+
+
+        let child3_id = cont.push_child(root_id, 304958).unwrap();
+        assert_eq!(*cont.get(child3_id).unwrap(), 304958);
+        // assumptions about the internal API
+        assert_eq!(Some(child3_id), cont._nth_child_id(root_id, 2));
+        // assumptions about the data structure
+        assert_eq!(cont._get_node(child3_id).unwrap().sibling_left, Some(child2_id));
+        assert_eq!(cont._get_node(child2_id).unwrap().sibling_right, Some(child3_id));
+        assert_eq!(cont._get_node(child3_id).unwrap().sibling_right, None);
+        assert_eq!(cont._get_node(child3_id).unwrap().parent, Some(root_id));
+
+        let child4_id = cont.push_child(root_id, 0, 452579).unwrap();
+        assert_eq!(*cont.get(child4_id).unwrap(), 452579);
+        // assumptions about the internal API
+        assert_eq!(Some(child4_id), cont._nth_child_id(root_id, 3));
+        // assumptions about the data structure
+        assert_eq!(cont._get_node(child4_id).unwrap().sibling_left, Some(child3_id));
+        assert_eq!(cont._get_node(child3_id).unwrap().sibling_right, Some(child4_id));
+        assert_eq!(cont._get_node(child4_id).unwrap().sibling_right, None);
+        assert_eq!(cont._get_node(child4_id).unwrap().parent, Some(root_id));
+    }
+
+
 
     #[test]
     fn test_path() {
