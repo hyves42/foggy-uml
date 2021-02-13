@@ -27,7 +27,10 @@ impl Direction {
 }
 
 
-
+// todo
+// modifier/compléter le champ direction pour décrire :
+// - que les enfants sont placés à des positions fixes qu'il ne faut pas modifier 
+// - qu'il faut placer les éléments enfants sur un cercle
 #[derive(Debug, PartialEq, Default)]
 pub struct LayoutElement {
     pub constraint: BoxConstraints,
@@ -38,12 +41,6 @@ pub struct LayoutElement {
 
 
 
-#[derive(Debug, PartialEq, Default)]
-pub struct LayoutContainer {
-    // layoutElements organized as a tree
-    pub tree: TreeContainer<LayoutElement>,
-    pub root: NodeId
-}
 
 impl LayoutElement {
     pub fn new(direction: Direction) -> Self {
@@ -56,23 +53,10 @@ impl LayoutElement {
 }
 
 
-impl LayoutContainer {
-    pub fn new(root_elt:LayoutElement) -> Self{
-        let mut tree: TreeContainer<LayoutElement> = TreeContainer::new();
-        let root = tree.add_root(root_elt);
-        return LayoutContainer{
-            tree: tree,
-            root:root
-        }
-    }
-
-}
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
 
-    }
+    
 }

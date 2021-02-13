@@ -1,13 +1,13 @@
 extern crate foggy_engine;
 
 // For testing
-use std::io::Cursor;
 use std::io::BufRead;
+use std::io::Cursor;
 
+use foggy_engine::builders::sequencebuilder::SequenceDiagramBuilder;
 use foggy_engine::datatypes::*;
 use foggy_engine::parsers::datatypes::*;
 use foggy_engine::parsers::sequenceparser::SequenceDiagramParser;
-use foggy_engine::builders::sequencebuilder::SequenceDiagramBuilder;
 use foggy_engine::preprocessor;
 
 // Test
@@ -31,9 +31,9 @@ fn main() {
     // let mut pre = preprocessor::Preprocessor::new(&source, &["utf8", "utf8", "file.fgu"]);
 
     let mut parser = SequenceDiagramParser::new();
-    parser.step(& mut SliceWithContext::new_for_tests(&"alice->bob : Hello"));
-    parser.step(& mut SliceWithContext::new_for_tests(&"alice<-bob : ..."));
-    parser.step(& mut SliceWithContext::new_for_tests(&"bob->eve : !!!"));
+    parser.step(&mut SliceWithContext::new_for_tests(&"alice->bob : Hello"));
+    parser.step(&mut SliceWithContext::new_for_tests(&"alice<-bob : ..."));
+    parser.step(&mut SliceWithContext::new_for_tests(&"bob->eve : !!!"));
 
     let (elements, _documents) = parser.flush();
     let mut builder = SequenceDiagramBuilder::new();
