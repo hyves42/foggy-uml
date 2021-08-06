@@ -4,6 +4,7 @@ pub mod layout;
 pub mod parsers;
 pub mod parseutils;
 pub mod preprocessor;
+pub mod render;
 pub mod utils;
 
 #[cfg(test)]
