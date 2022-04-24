@@ -1,7 +1,6 @@
 use crate::utils::tree::*;
 use crate::datatypes::Rcc;
-use crate::layout::datatypes::*;
-use crate::layout::layout::*;
+use crate::layout::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
