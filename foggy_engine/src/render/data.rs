@@ -7,6 +7,7 @@ pub enum RenderableItem {
     RoundRectangle { x: usize, y: usize, w: usize, h: usize },
     Text { text: String, x: usize, y: usize },
     Line { x1:usize, y1:usize, x2:usize, y2:usize },
+    Arrow { x1:usize, y1:usize, x2:usize, y2:usize, end1:bool, end2:bool },
 }
 
 pub trait Renderer {
@@ -17,6 +18,10 @@ pub trait Renderer {
     fn text_dimension(&self, text: &str, bold: bool, italic: bool) -> (u32, u32);
 
     fn box_min_dimensions(&self) -> (u32, u32);
+
+    fn line_keepout(&self) -> u32;
+
+    fn render(&self) -> String;
 }
 
 pub struct Engine {}
@@ -71,6 +76,15 @@ mod tests {
         fn box_min_dimensions(&self) -> (u32, u32) {
             (0, 0)
         }
+
+        fn line_keepout(&self) -> u32 {
+            0
+        }
+
+        fn render(&self) -> String{
+            String::new()
+        }
+
     }
 
     pub struct DummyRender2 {}
@@ -87,10 +101,18 @@ mod tests {
         fn box_min_dimensions(&self) -> (u32, u32) {
             (0, 0)
         }
+        fn line_keepout(&self) -> u32 {
+            0
+        }
+
+        fn render(&self) -> String{
+            String::new()
+        }
     }
 
     #[test]
     fn test() {
+        // Just check that my lifetimes are OK
         let mut renderer: DummyRender = DummyRender { out: String::new() };
         let engine: Engine = Engine {};
 

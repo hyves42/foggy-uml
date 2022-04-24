@@ -227,17 +227,6 @@ impl AsciiRenderer {
         }
     }
 
-    pub fn render(&self) -> String {
-        let mut out = String::new();
-        for line in self.scene.iter() {
-            for c in line.iter(){
-                out.push(*c);
-            }
-            out.push('\n');
-        }
-        return out;
-    }
-
     fn set_char(&mut self, x: usize, y: usize, c: char) {
         if let Some(line) = self.scene.get_mut(y) {
             line[x] = c;
@@ -349,14 +338,14 @@ impl AsciiRenderer {
 
     fn draw_line(&mut self, x1:usize, y1:usize, x2:usize, y2:usize){
         // horizontal line
-        if (y1 == y2){
+        if y1 == y2{
             for i in x1..x2+1{
                 self.set_char(i, y1, BOX_LIGHT_HORIZONTAL);
             }
         }
 
         // vertical line
-        if (x1 == x2){
+        if x1 == x2{
             for i in y1..y2+1{
                 self.set_char(x1, i, BOX_LIGHT_VERTICAL);
             }
@@ -366,7 +355,50 @@ impl AsciiRenderer {
     } 
 
 
+    fn draw_arrow(&mut self, x1:usize, y1:usize, x2:usize, y2:usize, end1:bool, end2:bool){
+        self.draw_line(x1, y1, x2, y2);
 
+        // horizontal line
+        if y1 == y2{
+            if x1 > x2{
+                if end1{
+                    self.set_char(x1, y1, '▷');
+                }
+                if end2{
+                    self.set_char(x2, y2, '◁');   
+                }
+            }
+            else{
+                if end1{
+                    self.set_char(x1, y1, '◁');
+                }
+                if end2{
+                    self.set_char(x2, y2, '▷');   
+                }
+            }
+        }
+
+        // vertical line
+        if x1 == x2{
+            if y1 > y2{
+                if end1{
+                    self.set_char(x1, y1, '▽');
+                }
+                if end2{
+                    self.set_char(x2, y2, '△');   
+                }
+            }
+            else{
+                if end1{
+                    self.set_char(x1, y1, '△');
+                }
+                if end2{
+                    self.set_char(x2, y2, '▽');   
+                }
+            }
+        }
+        // other not supported
+    }
 }
 
 impl Renderer for AsciiRenderer {
@@ -384,14 +416,25 @@ impl Renderer for AsciiRenderer {
         self.height = height;
     }
 
+    fn render(&self) -> String {
+        let mut out = String::new();
+        for line in self.scene.iter() {
+            for c in line.iter(){
+                out.push(*c);
+            }
+            out.push('\n');
+        }
+        return out;
+    }
+
     fn draw(&mut self, object: &RenderableItem) {
         match object{
-            RenderableItem::Rectangle{x:x, y:y, w:w, h:h} => self.draw_rectangle(*x, *y, *w, *h, false),
-            RenderableItem::RoundRectangle{x:x, y:y, w:w, h:h} => self.draw_rectangle(*x, *y, *w, *h, true),
-            RenderableItem::Text{text:text, x:x,y:y} => self.draw_text(text, *x, *y),
-            RenderableItem::Line{x1:x1, y1:y1, x2:x2, y2:y2} => self.draw_line(*x1, *y1, *x2, *y2),
+            RenderableItem::Rectangle{x, y, w, h} => self.draw_rectangle(*x, *y, *w, *h, false),
+            RenderableItem::RoundRectangle{x, y, w, h} => self.draw_rectangle(*x, *y, *w, *h, true),
+            RenderableItem::Text{text, x, y} => self.draw_text(text, *x, *y),
+            RenderableItem::Line{x1, y1, x2, y2} => self.draw_line(*x1, *y1, *x2, *y2),
+            RenderableItem::Arrow {x1, y1, x2, y2, end1, end2} => self.draw_arrow(*x1, *y1, *x2, *y2, *end1, *end2),
         }
-
     }
 
     fn text_dimension(&self, text: &str, bold: bool, italic: bool) -> (u32, u32) {
@@ -402,6 +445,11 @@ impl Renderer for AsciiRenderer {
     fn box_min_dimensions(&self) -> (u32, u32) {
         return (3, 3);
     }
+
+    fn line_keepout(&self) -> u32 {
+        return 1;
+    }
+
 }
 
 #[cfg(test)]
@@ -499,6 +547,28 @@ mod tests {
         assert_eq!(out, "────\n    \n    \n    \n");
     }
 
+
+    #[test]
+    fn test_draw_arrow_horizontal() {
+        let mut renderer = AsciiRenderer::new();
+
+        renderer.init_scene(4, 4);
+        renderer.draw_arrow(0,0, 3, 0, true, true);
+        let out = renderer.render();
+        assert_eq!(out, "◁──▷\n    \n    \n    \n");
+    }
+
+
+    #[test]
+    fn test_draw_arrow_vertical() {
+        let mut renderer = AsciiRenderer::new();
+
+        renderer.init_scene(4, 4);
+        renderer.draw_arrow(0,0, 0, 3, true, true);
+
+        let out = renderer.render();
+        assert_eq!(out, "△   \n│   \n│   \n▽   \n");
+    }
 
 
     #[test]
