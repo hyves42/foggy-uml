@@ -1,4 +1,4 @@
-use crate::render::data::*;
+use crate::render::*;
 
 
 const BOX_LIGHT_HORIZONTAL:char = '\u{2500}'; // ─
