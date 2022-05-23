@@ -32,6 +32,13 @@ pub struct TreeChildrenIterator<'a, T> {
     cur_id: Option<NodeId>
 }
 
+
+// Iterate depth-first over elements
+pub struct TreeDepthIterator<'a, T> {
+    tree: &'a TreeContainer<T>,
+    cur_id: Option<NodeId>
+}
+
 // Visit children nodes without holding a reference to the tree
 pub struct ChildrenIdWalk {
     parent: NodeId,
@@ -329,6 +336,12 @@ impl<T> TreeContainer<T> {
     -> TreeChildrenIterator<T>
     {
         TreeChildrenIterator::new(&self, parent)
+    }
+
+    pub fn depth_iter(&self)
+    -> TreeDepthIterator<T>
+    {
+        TreeDepthIterator::new(&self)
     }    
 
     // path is a string of form "0:12:4:1..."
@@ -411,11 +424,17 @@ impl<T> TreeContainer<T> {
                     return None;
                 }
             }
-
-            return None;
         } else {
             return None;
         }
+    }
+
+    fn _sibling_id(&self, id: NodeId) -> Option<NodeId> {
+        self._get_node(id)?.sibling_right
+    }
+
+    fn _parent_id(&self, id: NodeId) -> Option<NodeId> {
+        self._get_node(id)?.parent
     }
 }
 
@@ -444,6 +463,53 @@ impl <'a, T> Iterator for TreeChildrenIterator<'a, T> {
         return Some((self.cur_id?, self.tree.get(self.cur_id?)?));
     }    
 }
+
+impl <'a, T> TreeDepthIterator<'a, T> {
+    pub fn new(tree :&'a TreeContainer<T>) -> Self {
+        TreeDepthIterator {
+            tree: tree,
+            cur_id: None
+        }
+    }
+}
+
+impl <'a, T> Iterator for TreeDepthIterator<'a, T> {
+    type Item = (NodeId, &'a T);
+
+    fn next(&mut self) -> Option<(NodeId, &'a T)> {
+        // First call of iterator, return root if any
+        if self.cur_id.is_none(){
+            self.cur_id = self.tree.root;
+        }
+        else if let Some(id) = self.tree._first_child_id(self.cur_id?){
+            //return first child
+            self.cur_id = Some(id);    
+        }
+        else if let Some(id) = self.tree._sibling_id(self.cur_id?){
+            //return next sibling
+            self.cur_id = Some(id); 
+        }
+        else{
+            // parent sibling
+            let mut cur = self.cur_id?;
+
+            loop {
+                if let Some(parent) = self.tree._parent_id(cur) {
+                    if let Some(sibling) = self.tree._sibling_id(parent) {
+                        self.cur_id = Some(sibling);
+                        break;
+                    }
+                    cur=parent;
+                } else {
+                    self.cur_id = None;
+                    break;
+                }
+            }
+        }
+        return Some((self.cur_id?, self.tree.get(self.cur_id?)?));
+    }    
+}
+
 
 impl ChildrenIdWalk {
     pub fn new(parent:NodeId ) -> Self {
@@ -696,7 +762,62 @@ mod tests {
         assert_eq!(None, walk.next(&tree));
     }
 
+    #[test]
+    fn children_walk_ownership() {
+        let mut tree: TreeContainer<i64> = TreeContainer::new();
+        let root_id = tree.add_root(42);
+        let id1 = tree.push_child(root_id, 1).unwrap();
+        let id2 = tree.push_child(root_id, 2).unwrap();
+        let id3 = tree.push_child(root_id, 3).unwrap();
+        let id4 = tree.push_child(root_id, 4).unwrap();
+        
+        let mut walk =  ChildrenIdWalk::new(root_id);
+
+        while let Some(id) = walk.next(&tree){
+            let e = tree.get_mut(id).unwrap();
+            *e=51;
+        }
+
+        assert_eq!(*tree.get(id1).unwrap(), 51);
+        assert_eq!(*tree.get(id2).unwrap(), 51);
+        assert_eq!(*tree.get(id3).unwrap(), 51);
+        assert_eq!(*tree.get(id4).unwrap(), 51);
+
+    }
  
+
+    #[test]
+    fn depth_iterator() {
+        let mut tree: TreeContainer<i64> = TreeContainer::new();
+        let root_id = tree.add_root(1);
+        let id1 = tree.push_child(root_id, 2).unwrap();
+        let id11 = tree.push_child(id1,    3).unwrap();
+        let id12 = tree.push_child(id1,    4).unwrap();
+        let id2 = tree.push_child(root_id, 5).unwrap();
+        let id21 = tree.push_child(id2,    6).unwrap();
+        let id211 = tree.push_child(id21,  7).unwrap();
+        let id22 = tree.push_child(id2,    8).unwrap();
+        let id221 = tree.push_child(id22,  9).unwrap();
+        let id3 = tree.push_child(root_id, 10).unwrap();
+        let id4 = tree.push_child(root_id, 11).unwrap();
+        
+        let mut iterator =  tree.depth_iter();
+
+        assert_eq!(Some((root_id,&1)), iterator.next());
+        assert_eq!(Some((id1,    &2)), iterator.next());
+        assert_eq!(Some((id11,   &3)), iterator.next());
+        assert_eq!(Some((id12,   &4)), iterator.next());
+        assert_eq!(Some((id2,    &5)), iterator.next());
+        assert_eq!(Some((id21,   &6)), iterator.next());
+        assert_eq!(Some((id211,  &7)), iterator.next());
+        assert_eq!(Some((id22,   &8)), iterator.next());
+        assert_eq!(Some((id221,  &9)), iterator.next());
+        assert_eq!(Some((id3,   &10)), iterator.next());
+        assert_eq!(Some((id4,   &11)), iterator.next());
+        assert_eq!(None, iterator.next());
+    }
+
+
     #[test]
     fn children_count() {
         let mut tree: TreeContainer<i64> = TreeContainer::new();
