@@ -1,8 +1,9 @@
 // A tree structure allocated in the same contiguous memory region
 // allocated memory can only grow, there is no freeing mechanism
+use crate::utils::uid::*;
 
 
-pub type NodeId = usize;
+pub type NodeId = Guid;
 
 #[derive(Debug, PartialEq, Default)]
 struct TreeNode<T> {
@@ -22,7 +23,7 @@ pub struct TreeContainer<T> {
     // Flat list of all the nodes
     // It is allowed to have node in this flat list 
     // that are not present in the tree
-    flat: Vec<Option<TreeNode<T>>>,
+    flat: UidStore<TreeNode<T>>,
 }
 
 // Iterate over children elements directly
@@ -56,40 +57,39 @@ impl<T> TreeNode<T> {
         }
     }
 
-    pub fn with_parent(mut self, parent: usize) -> Self {
+    pub fn with_parent(mut self, parent: NodeId) -> Self {
         self.parent = Some(parent);
         return self;
     }
 
-    pub fn with_first_child(mut self, child: usize) -> Self {
+    pub fn with_first_child(mut self, child: NodeId) -> Self {
         self.first_child = Some(child);
         return self;
     }
 
-    pub fn with_sibling_left(mut self, left: usize) -> Self {
+    pub fn with_sibling_left(mut self, left: NodeId) -> Self {
         self.sibling_left = Some(left);
         return self;
     }
 
-    pub fn with_sibling_right(mut self, right: usize) -> Self {
+    pub fn with_sibling_right(mut self, right: NodeId) -> Self {
         self.sibling_right = Some(right);
         return self;
     }
 }
 
 impl<T> TreeContainer<T> {
-    pub fn new() -> Self {
+    pub fn new(salt:u16) -> Self {
         TreeContainer {
             root: None,
-            flat: vec![],
+            flat: UidStore::new(salt),
         }
     }
 
-    pub fn with_root(mut self, t: T) -> Self {
+    pub fn with_root(mut self, t: T, uid:NodeId) -> Self {
         let n = TreeNode::new(t);
-        let idx = self.flat.len();
-        self.flat.push(Some(n));
-        self.root = Some(idx);
+        self.flat.insert(uid,n);
+        self.root = Some(uid);
         return self;
     }
 
@@ -100,12 +100,11 @@ impl<T> TreeContainer<T> {
 
 
 
-    pub fn add_root(&mut self, t: T) -> NodeId {
+    pub fn add_root(&mut self, t: T, uid:NodeId) -> NodeId {
         let n = TreeNode::new(t);
-        self.flat.push(Some(n));
-        let idx = self.flat.len() - 1;
-        self.root = Some(idx);
-        return idx;
+        self.flat.insert(uid,n);
+        self.root = Some(uid);
+        return uid;
     }
 
     //    x      x         x           x
@@ -113,7 +112,7 @@ impl<T> TreeContainer<T> {
     //           y       y--z        a--y--z
     // Add a child a the given index.
     // Panics if pos is > the number of children or if parent does not exist
-    pub fn add_child(&mut self, parent: NodeId, pos: usize, t: T) -> Result<NodeId,&str> {
+    pub fn add_child(&mut self, parent: NodeId, pos: usize, t: T, uid: NodeId) -> Result<NodeId,&str> {
         if !self._has_child(parent) {
             // case A
             if pos > 0 {
@@ -121,93 +120,87 @@ impl<T> TreeContainer<T> {
             }
             // Insert the first child
             let node = TreeNode::new(t).with_parent(parent);
-            let new_id = self.flat.len();
-            if let Some(p) = self.flat.get_mut(parent).ok_or("").unwrap() {
-                p.first_child = Some(new_id);
-                self.flat.push(Some(node));
+            if let Some(p) = self.flat.get_mut(parent) {
+                p.first_child = Some(uid);
+                self.flat.insert(uid, node);
             } else {
                 panic!();
             }
-            return Ok(new_id);
+            return Ok(uid);
         } else {
             if pos > 0{
                 // case B
-                let left_id = self._nth_child_id(parent, pos-1).ok_or("").unwrap();
-                let new_id = self.flat.len();
+                let left_id = self._nth_child_id(parent, pos-1).unwrap();
                 let mut node = TreeNode::new(t).with_parent(parent).with_sibling_left(left_id);
-                let mut right_id: Option<usize> = None;
-                
+                let mut right_id: Option<NodeId> = None;
 
-                if let Some(l) = self.flat.get_mut(left_id).unwrap() {
+                if let Some(l) = self.flat.get_mut(left_id) {
                     right_id = l.sibling_right;
-                    l.sibling_right = Some(new_id);
+                    l.sibling_right = Some(uid);
                 } else {
                     panic!();
                 }
 
                 if let Some(id) = right_id{
-                    if let Some(r) = self.flat.get_mut(id).unwrap() {
-                        r.sibling_left = Some(new_id);
+                    if let Some(r) = self.flat.get_mut(id) {
+                        r.sibling_left = Some(uid);
                         node.sibling_right = Some(id);
                     }
                 }
-                self.flat.push(Some(node)); 
-                return Ok(new_id);
+                self.flat.insert(uid, node); 
+                return Ok(uid);
             }
             else{
                 // case C
                 // Insert the child at 1st position
-                let new_id = self.flat.len();
-                let right_id = self._first_child_id(parent).ok_or("").unwrap();
+                let right_id = self._first_child_id(parent).unwrap();
                 let node = TreeNode::new(t).with_parent(parent).with_sibling_right(right_id);
 
-                if let Some(p) = self.flat.get_mut(parent).ok_or("").unwrap() {
-                    p.first_child = Some(new_id);
-                    self.flat.push(Some(node));
+                if let Some(p) = self.flat.get_mut(parent) {
+                    p.first_child = Some(uid);
+                    self.flat.insert(uid, node);
                 } else {
                     panic!();
                 }
 
-                if let Some(r) = self.flat.get_mut(right_id).ok_or("").unwrap() {
-                    r.sibling_left = Some(new_id);
+                if let Some(r) = self.flat.get_mut(right_id) {
+                    r.sibling_left = Some(uid);
                 } else {
                     panic!();
                 }
 
-                return Ok(new_id);
+                return Ok(uid);
             }
         }
     }
 
 
     // Push a child at the last available position
-    pub fn push_child(&mut self, parent: NodeId, t: T) -> Result<NodeId,&str>  {
+    pub fn push_child(&mut self, parent: NodeId, t: T, uid:NodeId) -> Result<NodeId,&str>  {
         if !self._has_child(parent) {
             // Insert the first child
             let node = TreeNode::new(t).with_parent(parent);
-            let new_id = self.flat.len();
-            if let Some(p) = self.flat.get_mut(parent).ok_or("").unwrap() {
-                p.first_child = Some(new_id);
-                self.flat.push(Some(node));
+
+            if let Some(p) = self.flat.get_mut(parent) {
+                p.first_child = Some(uid);
+                self.flat.insert(uid, node);
             } else {
                 panic!();
             }
-            return Ok(new_id);
+            return Ok(uid);
         } else {
             // Push child at the end of list
-            let left_id = self._last_child_id(parent).ok_or("").unwrap();
-            let new_id = self.flat.len();
+            let left_id = self._last_child_id(parent).unwrap();
             let mut node = TreeNode::new(t).with_parent(parent).with_sibling_left(left_id);
             
-
-            if let Some(l) = self.flat.get_mut(left_id).unwrap() {
-                l.sibling_right = Some(new_id);
+            if let Some(l) = self.flat.get_mut(left_id) {
+                l.sibling_right = Some(uid);
             } else {
                 panic!();
             }
 
-            self.flat.push(Some(node)); 
-            return Ok(new_id); 
+            self.flat.insert(uid, node); 
+            return Ok(uid); 
         }
     }
 
@@ -237,18 +230,12 @@ impl<T> TreeContainer<T> {
 
     pub fn get(&self, id: NodeId) -> Option<&T> {
         let c = self.flat.get(id)?;
-        match c {
-            None => None,
-            Some(n) => Some(&n.data),
-        }
+        Some(&c.data)
     }
 
     pub fn get_mut(&mut self, id: NodeId) -> Option<&mut T> {
         let c = self.flat.get_mut(id)?;
-        match c {
-            None => None,
-            Some(n) => Some(&mut n.data)
-        }
+        Some(&mut c.data)
     }
 
     // Return the number of nodes below node id
@@ -287,7 +274,7 @@ impl<T> TreeContainer<T> {
             _ => return None
         }
 
-        let mut cursor:usize = self.root?;
+        let mut cursor: NodeId = self.root?;
 
         while let Some(fragment) = iter.next() {
             if let Ok(i) = fragment {
@@ -356,33 +343,24 @@ impl<T> TreeContainer<T> {
     }
 
     // Store a new node and return its id. The node will be floating
-    fn _new_id(&mut self, t:T) -> NodeId {
+    fn _new_id(&mut self, t:T, uid: NodeId) -> NodeId {
         let node = TreeNode::new(t);
-        let new_id = self.flat.len();
-        self.flat.push(Some(node));
-        return new_id;      
+        self.flat.insert(uid,node);
+        return uid;      
     }
 
     fn _get_node(&self, id: NodeId) -> Option<&TreeNode<T>> {
-        let c = self.flat.get(id)?;
-        match c {
-            None => None,
-            Some(n) => Some(&n),
-        }
+        self.flat.get(id)
     }
 
 
     // panics if id does not exist
     fn _has_child(&self, id: NodeId) -> bool {
-        if let Some(n) = self.flat.get(id).unwrap() {
-            return n.first_child.is_some();
-        } else {
-            panic!();
-        }
+        self.flat.get(id).unwrap().first_child.is_some()
     }
 
     fn _first_child_id(&self, id: NodeId) -> Option<NodeId> {
-        if let Some(n) = self.flat.get(id)? {
+        if let Some(n) = self.flat.get(id) {
             n.first_child
         } else {
             None
@@ -390,43 +368,32 @@ impl<T> TreeContainer<T> {
     }
 
     fn _nth_child_id(&self, id: NodeId, offset: usize) -> Option<NodeId> {
-        if let Some(n) = self.flat.get(id)? {
-            let mut cur = n.first_child?;
-            let mut cnt = 0;
+        let n = self.flat.get(id)? ;
+        let mut cur = n.first_child?;
+        let mut cnt = 0;
 
-            while cnt < offset {
-                if let Some(node) = self.flat.get(cur)? {
-                    cur = node.sibling_right?;
-                } else {
-                    return None;
-                }
-                cnt += 1;
-            }
-
-            return Some(cur);
-        } else {
-            return None;
+        while cnt < offset {
+            let node = self.flat.get(cur)?;
+            cur = node.sibling_right?;
+            cnt += 1;
         }
+
+        return Some(cur);
     }
 
     fn _last_child_id(&self, id: NodeId) -> Option<NodeId> {
-        if let Some(n) = self.flat.get(id)? {
-            let mut cur = n.first_child?;
+        let n = self.flat.get(id)?;
+        let mut cur = n.first_child?;
 
-            loop {
-                if let Some(node) = self.flat.get(cur)? {
-                    if let Some(sibling) = node.sibling_right {
-                        cur = sibling;
-                    } else {
-                        return Some(cur);
-                    }
-                } else {
-                    return None;
-                }
+        loop {
+            let node = self.flat.get(cur)? ;
+            if let Some(sibling) = node.sibling_right {
+                cur = sibling;
+            } else {
+                return Some(cur);
             }
-        } else {
-            return None;
         }
+ 
     }
 
     fn _sibling_id(&self, id: NodeId) -> Option<NodeId> {
@@ -554,8 +521,10 @@ mod tests {
 
     #[test]
     fn test_basic() {
-        let mut cont: TreeContainer<i64> = TreeContainer::new();
-        let id = cont.add_root(32412345);
+        let mut gen = GuidManager::new(0);
+        let mut cont: TreeContainer<i64> = TreeContainer::new(0);
+        let id = gen.get();
+        cont.add_root(32412345, id);
         assert_eq!(*cont.get(id).unwrap(), 32412345);
 
         if let Some(mut n) = cont.get_mut(id) {
@@ -566,12 +535,13 @@ mod tests {
 
     #[test]
     fn add_first_child() {
-        let mut cont: TreeContainer<i64> = TreeContainer::new();
-        let root_id = cont.add_root(32412345);
+        let mut gen = GuidManager::new(0);
+        let mut cont: TreeContainer<i64> = TreeContainer::new(0);
+        let root_id = cont.add_root(32412345, gen.get());
 
         assert_eq!(*cont.get(root_id).unwrap(), 32412345);
 
-        let child_id = cont.add_child(root_id, 0, 834576098).unwrap();
+        let child_id = cont.add_child(root_id, 0, 834576098, gen.get()).unwrap();
         assert_eq!(*cont.get(child_id).unwrap(), 834576098);
 
         // assumptions about the internal API
@@ -586,12 +556,13 @@ mod tests {
 
     #[test]
     fn add_children() {
-        let mut cont: TreeContainer<i64> = TreeContainer::new();
-        let root_id = cont.add_root(32412345);
-        let child1_id = cont.add_child(root_id, 0, 834576098).unwrap();
+        let mut gen = GuidManager::new(0);
+        let mut cont: TreeContainer<i64> = TreeContainer::new(0);
+        let root_id = cont.add_root(32412345, gen.get());
+        let child1_id = cont.add_child(root_id, 0, 834576098, gen.get()).unwrap();
 
 
-        let child2_id = cont.add_child(root_id, 1, 908720349875).unwrap();
+        let child2_id = cont.add_child(root_id, 1, 908720349875, gen.get()).unwrap();
         assert_eq!(*cont.get(child2_id).unwrap(), 908720349875);
         // assumptions about the internal API
         assert_eq!(Some(child2_id), cont._nth_child_id(root_id, 1));
@@ -602,7 +573,7 @@ mod tests {
         assert_eq!(cont._get_node(child2_id).unwrap().parent, Some(root_id));
 
 
-        let child3_id = cont.add_child(root_id, 1, 304958).unwrap();
+        let child3_id = cont.add_child(root_id, 1, 304958, gen.get()).unwrap();
         assert_eq!(*cont.get(child3_id).unwrap(), 304958);
         // assumptions about the internal API
         assert_eq!(Some(child3_id), cont._nth_child_id(root_id, 1));
@@ -613,7 +584,7 @@ mod tests {
         assert_eq!(cont._get_node(child3_id).unwrap().sibling_right, Some(child2_id));
         assert_eq!(cont._get_node(child3_id).unwrap().parent, Some(root_id));
 
-        let child4_id = cont.add_child(root_id, 0, 452579).unwrap();
+        let child4_id = cont.add_child(root_id, 0, 452579, gen.get()).unwrap();
         assert_eq!(*cont.get(child4_id).unwrap(), 452579);
         // assumptions about the internal API
         assert_eq!(Some(child1_id), cont._nth_child_id(root_id, 1));
@@ -628,9 +599,10 @@ mod tests {
 
     #[test]
     fn push_children() {
-        let mut cont: TreeContainer<i64> = TreeContainer::new();
-        let root_id = cont.add_root(32412345);
-        let child1_id = cont.push_child(root_id, 834576098).unwrap();
+        let mut gen = GuidManager::new(0);
+        let mut cont: TreeContainer<i64> = TreeContainer::new(0);
+        let root_id = cont.add_root(32412345, gen.get());
+        let child1_id = cont.push_child(root_id, 834576098, gen.get()).unwrap();
         assert_eq!(*cont.get(child1_id).unwrap(), 834576098);
 
         // assumptions about the internal API
@@ -643,7 +615,7 @@ mod tests {
         assert_eq!(cont._get_node(child1_id).unwrap().parent, Some(root_id));
 
 
-        let child2_id = cont.push_child(root_id, 908720349875).unwrap();
+        let child2_id = cont.push_child(root_id, 908720349875, gen.get()).unwrap();
         assert_eq!(*cont.get(child2_id).unwrap(), 908720349875);
         // assumptions about the internal API
         assert_eq!(Some(child2_id), cont._nth_child_id(root_id, 1));
@@ -654,7 +626,7 @@ mod tests {
         assert_eq!(cont._get_node(child1_id).unwrap().sibling_right, Some(child2_id));
 
 
-        let child3_id = cont.push_child(root_id, 304958).unwrap();
+        let child3_id = cont.push_child(root_id, 304958, gen.get()).unwrap();
         assert_eq!(*cont.get(child3_id).unwrap(), 304958);
         // assumptions about the internal API
         assert_eq!(Some(child3_id), cont._nth_child_id(root_id, 2));
@@ -664,7 +636,7 @@ mod tests {
         assert_eq!(cont._get_node(child3_id).unwrap().sibling_right, None);
         assert_eq!(cont._get_node(child3_id).unwrap().parent, Some(root_id));
 
-        let child4_id = cont.push_child(root_id, 452579).unwrap();
+        let child4_id = cont.push_child(root_id, 452579, gen.get()).unwrap();
         assert_eq!(*cont.get(child4_id).unwrap(), 452579);
         // assumptions about the internal API
         assert_eq!(Some(child4_id), cont._nth_child_id(root_id, 3));
@@ -679,11 +651,12 @@ mod tests {
 
     #[test]
     fn test_path() {
-        let mut cont: TreeContainer<i64> = TreeContainer::new();
-        let root_id = cont.add_root(32412345);
-        let id1 = cont.add_child(root_id, 0, 65874567).unwrap();
-        let id2 = cont.add_child(root_id, 1, 267869890).unwrap();
-        let id3 = cont.add_child(id2, 0, 3454).unwrap();
+        let mut gen = GuidManager::new(0);
+        let mut cont: TreeContainer<i64> = TreeContainer::new(0);
+        let root_id = cont.add_root(32412345, gen.get());
+        let id1 = cont.add_child(root_id, 0, 65874567, gen.get()).unwrap();
+        let id2 = cont.add_child(root_id, 1, 267869890, gen.get()).unwrap();
+        let id3 = cont.add_child(id2, 0, 3454, gen.get()).unwrap();
 
         assert_eq!(cont.id_by_path("0"), Some(root_id));
         assert_eq!(cont.id_by_path("0:0"), Some(id1));
@@ -699,12 +672,13 @@ mod tests {
 
     #[test]
     fn children_iterator() {
-        let mut tree: TreeContainer<i64> = TreeContainer::new();
-        let root_id = tree.add_root(42);
-        let id1 = tree.push_child(root_id, 1).unwrap();
-        let id2 = tree.push_child(root_id, 2).unwrap();
-        let id3 = tree.push_child(root_id, 3).unwrap();
-        let id4 = tree.push_child(root_id, 4).unwrap();
+        let mut gen = GuidManager::new(0);
+        let mut tree: TreeContainer<i64> = TreeContainer::new(0);
+        let root_id = tree.add_root(42, gen.get());
+        let id1 = tree.push_child(root_id, 1, gen.get()).unwrap();
+        let id2 = tree.push_child(root_id, 2, gen.get()).unwrap();
+        let id3 = tree.push_child(root_id, 3, gen.get()).unwrap();
+        let id4 = tree.push_child(root_id, 4, gen.get()).unwrap();
         
         let mut iterator =  tree.children_iter(root_id);
 
@@ -717,8 +691,9 @@ mod tests {
 
     #[test]
     fn children_iterator2() {
-        let mut tree: TreeContainer<i64> = TreeContainer::new();
-        let root_id = tree.add_root(42);
+        let mut gen = GuidManager::new(0);
+        let mut tree: TreeContainer<i64> = TreeContainer::new(0);
+        let root_id = tree.add_root(42, gen.get());
         
         let mut iterator =  tree.children_iter(root_id);
         assert_eq!(None, iterator.next());
@@ -727,13 +702,14 @@ mod tests {
 
     #[test]
     fn children_iterator3() {
-        let mut tree: TreeContainer<i64> = TreeContainer::new();
-        let root_id = tree.add_root(42);
-        tree.push_child(root_id, 1);
-        tree.push_child(root_id, 1);
-        tree.push_child(root_id, 1);
-        tree.push_child(root_id, 1);
-        tree.push_child(root_id, 1);
+        let mut gen = GuidManager::new(0);
+        let mut tree: TreeContainer<i64> = TreeContainer::new(0);
+        let root_id = tree.add_root(42, gen.get());
+        tree.push_child(root_id, 1, gen.get());
+        tree.push_child(root_id, 1, gen.get());
+        tree.push_child(root_id, 1, gen.get());
+        tree.push_child(root_id, 1, gen.get());
+        tree.push_child(root_id, 1, gen.get());
         
         let mut sum = 0;
         for (_,val) in tree.children_iter(root_id){
@@ -746,12 +722,13 @@ mod tests {
 
     #[test]
     fn children_walk() {
-        let mut tree: TreeContainer<i64> = TreeContainer::new();
-        let root_id = tree.add_root(42);
-        let id1 = tree.push_child(root_id, 1).unwrap();
-        let id2 = tree.push_child(root_id, 2).unwrap();
-        let id3 = tree.push_child(root_id, 3).unwrap();
-        let id4 = tree.push_child(root_id, 4).unwrap();
+        let mut gen = GuidManager::new(0);
+        let mut tree: TreeContainer<i64> = TreeContainer::new(0);
+        let root_id = tree.add_root(42, gen.get());
+        let id1 = tree.push_child(root_id, 1, gen.get()).unwrap();
+        let id2 = tree.push_child(root_id, 2, gen.get()).unwrap();
+        let id3 = tree.push_child(root_id, 3, gen.get()).unwrap();
+        let id4 = tree.push_child(root_id, 4, gen.get()).unwrap();
         
         let mut walk =  ChildrenIdWalk::new(root_id);
 
@@ -764,12 +741,13 @@ mod tests {
 
     #[test]
     fn children_walk_ownership() {
-        let mut tree: TreeContainer<i64> = TreeContainer::new();
-        let root_id = tree.add_root(42);
-        let id1 = tree.push_child(root_id, 1).unwrap();
-        let id2 = tree.push_child(root_id, 2).unwrap();
-        let id3 = tree.push_child(root_id, 3).unwrap();
-        let id4 = tree.push_child(root_id, 4).unwrap();
+        let mut gen = GuidManager::new(0);
+        let mut tree: TreeContainer<i64> = TreeContainer::new(0);
+        let root_id = tree.add_root(42, gen.get());
+        let id1 = tree.push_child(root_id, 1, gen.get()).unwrap();
+        let id2 = tree.push_child(root_id, 2, gen.get()).unwrap();
+        let id3 = tree.push_child(root_id, 3, gen.get()).unwrap();
+        let id4 = tree.push_child(root_id, 4, gen.get()).unwrap();
         
         let mut walk =  ChildrenIdWalk::new(root_id);
 
@@ -788,18 +766,19 @@ mod tests {
 
     #[test]
     fn depth_iterator() {
-        let mut tree: TreeContainer<i64> = TreeContainer::new();
-        let root_id = tree.add_root(1);
-        let id1 = tree.push_child(root_id, 2).unwrap();
-        let id11 = tree.push_child(id1,    3).unwrap();
-        let id12 = tree.push_child(id1,    4).unwrap();
-        let id2 = tree.push_child(root_id, 5).unwrap();
-        let id21 = tree.push_child(id2,    6).unwrap();
-        let id211 = tree.push_child(id21,  7).unwrap();
-        let id22 = tree.push_child(id2,    8).unwrap();
-        let id221 = tree.push_child(id22,  9).unwrap();
-        let id3 = tree.push_child(root_id, 10).unwrap();
-        let id4 = tree.push_child(root_id, 11).unwrap();
+        let mut gen = GuidManager::new(0);
+        let mut tree: TreeContainer<i64> = TreeContainer::new(0);
+        let root_id = tree.add_root(1, gen.get());
+        let id1 = tree.push_child(root_id, 2, gen.get()).unwrap();
+        let id11 = tree.push_child(id1,    3, gen.get()).unwrap();
+        let id12 = tree.push_child(id1,    4, gen.get()).unwrap();
+        let id2 = tree.push_child(root_id, 5, gen.get()).unwrap();
+        let id21 = tree.push_child(id2,    6, gen.get()).unwrap();
+        let id211 = tree.push_child(id21,  7, gen.get()).unwrap();
+        let id22 = tree.push_child(id2,    8, gen.get()).unwrap();
+        let id221 = tree.push_child(id22,  9, gen.get()).unwrap();
+        let id3 = tree.push_child(root_id, 10, gen.get()).unwrap();
+        let id4 = tree.push_child(root_id, 11, gen.get()).unwrap();
         
         let mut iterator =  tree.depth_iter();
 
@@ -820,23 +799,55 @@ mod tests {
 
     #[test]
     fn children_count() {
-        let mut tree: TreeContainer<i64> = TreeContainer::new();
-        let root_id = tree.add_root(42);
-        tree.push_child(root_id, 1);
-        tree.push_child(root_id, 1);
-        tree.push_child(root_id, 1);
-        tree.push_child(root_id, 1);
-        tree.push_child(root_id, 1);
+        let mut gen = GuidManager::new(0);
+        let mut tree: TreeContainer<i64> = TreeContainer::new(0);
+        let root_id = tree.add_root(42, gen.get());
+        tree.push_child(root_id, 1, gen.get());
+        tree.push_child(root_id, 1, gen.get());
+        tree.push_child(root_id, 1, gen.get());
+        tree.push_child(root_id, 1, gen.get());
+        tree.push_child(root_id, 1, gen.get());
 
         assert_eq!(5, tree.len(root_id));
     }
 
     #[test]
     fn children_count2() {
-        let mut tree: TreeContainer<i64> = TreeContainer::new();
-        let root_id = tree.add_root(42);
+        let mut gen = GuidManager::new(0);
+        let mut tree: TreeContainer<i64> = TreeContainer::new(0);
+        let root_id = tree.add_root(42, gen.get());
 
         assert_eq!(0, tree.len(root_id));
+    }
+
+
+    #[test]
+    #[should_panic]
+    fn double_insert1() {
+        let mut gen = GuidManager::new(0);
+        let mut tree: TreeContainer<i64> = TreeContainer::new(0);
+        let root_id = tree.add_root(42, gen.get());
+        let root_id = tree.add_root(42, root_id);
+    }
+
+
+    #[test]
+    #[should_panic]
+    fn double_insert2() {
+        let mut gen = GuidManager::new(0);
+        let mut tree: TreeContainer<i64> = TreeContainer::new(0);
+        let root_id = tree.add_root(42, gen.get());
+        tree.push_child(root_id, 1, root_id);
+    }
+
+    #[test]
+    fn get_nonexisting() {
+        let mut gen = GuidManager::new(0);
+        let mut tree: TreeContainer<i64> = TreeContainer::new(0);
+        let res_id = gen.get();
+        let root_id = tree.add_root(42, gen.get());
+        tree.push_child(root_id, 1, gen.get());
+        assert_eq!(tree.get(res_id), None);
     }
 
 }
