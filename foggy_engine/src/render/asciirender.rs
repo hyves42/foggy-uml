@@ -42,7 +42,7 @@ const BOX_LIGHT_ARC_UP_AND_RIGHT:char = '\u{2570}'; // ╰
 
 
 
-struct AsciiRenderer {
+pub struct AsciiRenderer {
     scene: Vec<Vec<char>>,
     width: usize,
     height: usize,
@@ -246,8 +246,12 @@ impl AsciiRenderer {
     }
 
     fn draw_rectangle(&mut self, x: usize, y: usize, w: usize, h: usize, round:bool){
+        if w == 0  || h == 0{
+            //Nothing to draw
+            return;
+        }
         // draw corners
-        if (round){
+        if round {
             {
                 let c = self.get_char(x, y);
                 self.set_char(x, y, merge_char(BOX_LIGHT_ARC_DOWN_AND_RIGHT, c));

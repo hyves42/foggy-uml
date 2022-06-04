@@ -39,19 +39,19 @@ use crate::layout::*;
 // So lines number is intended to be far superior to lanes number
 
 
-#[derive(Debug, PartialEq, Default)]
+#[derive(Debug, PartialEq)]
 pub struct TableBuilder {
-    pub layout: TreeContainer<LayoutElement>,
+    pub layout: TreeContainer<LayoutElement, LayoutGuid>,
     pub direction: Direction,
     pub lanes: usize,
-    pub gen_id: GuidManager,
+    pub gen_id: GuidManager<LayoutGuid>,
 }
 
 impl TableBuilder {
-    pub fn new(direction: Direction, lanes: usize, salt:u16) -> Self {
-        let mut gen = GuidManager::new(salt);
+    pub fn new(direction: Direction, lanes: usize) -> Self {
+        let mut gen = GuidManager::new();
         return TableBuilder {
-            layout: TreeContainer::new(salt).with_root(LayoutElement::new(direction), gen.get()),
+            layout: TreeContainer::new().with_root(LayoutElement::new(direction), gen.get()),
             lanes: lanes,
             direction: direction,
             gen_id: gen,
@@ -59,8 +59,8 @@ impl TableBuilder {
     }
 
     // Re
-    pub fn add_line(&mut self) -> Vec<NodeId>{
-        let mut cells :Vec<NodeId> = vec![];
+    pub fn add_line(&mut self) -> Vec<LayoutGuid>{
+        let mut cells :Vec<LayoutGuid> = vec![];
 
         let line = self.layout.push_child(
                 self.layout.root_id().unwrap(), 
@@ -78,9 +78,9 @@ impl TableBuilder {
         return cells;
     } 
 
-    pub fn add_lane(&mut self) -> Vec<NodeId>{
+    pub fn add_lane(&mut self) -> Vec<LayoutGuid>{
         let root = self.layout.root_id().unwrap();
-        let mut cells :Vec<NodeId> = vec![];
+        let mut cells :Vec<LayoutGuid> = vec![];
 
         let mut line_iter = ChildrenIdWalk::new(root);
         while let Some(line_uid) = line_iter.next(&self.layout){
@@ -213,12 +213,10 @@ impl TableBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use float_cmp::*;
-
 
     #[test]
     fn add_lines() {
-        let mut builder = TableBuilder::new(Direction::Vertical,4, 0);
+        let mut builder = TableBuilder::new(Direction::Vertical,4);
         let line1_ids = builder.add_line();
         assert_eq!(line1_ids.len(), 4);
         assert_eq!(builder.layout.id_by_path("0:0:0"),Some(line1_ids[0]));
@@ -236,7 +234,7 @@ mod tests {
 
     #[test]
     fn add_lanes() {
-        let mut builder = TableBuilder::new(Direction::Vertical,3, 0);
+        let mut builder = TableBuilder::new(Direction::Vertical,3);
         let line1_ids = builder.add_line();
         let line2_ids = builder.add_line();
         let line3_ids = builder.add_line();
@@ -251,7 +249,7 @@ mod tests {
 
     #[test]
     fn add_lanes_lines() {
-        let mut builder = TableBuilder::new(Direction::Vertical,3, 0);
+        let mut builder = TableBuilder::new(Direction::Vertical,3);
         let line1_ids = builder.add_line();
         let line2_ids = builder.add_line();
         let line3_ids = builder.add_line();
@@ -267,7 +265,7 @@ mod tests {
 
     #[test]
     fn constraints_vertical1() {
-        let mut builder = TableBuilder::new(Direction::Vertical,2, 0);
+        let mut builder = TableBuilder::new(Direction::Vertical,2);
         let line0_ids = builder.add_line();
         let line1_ids = builder.add_line();
 
