@@ -42,15 +42,5 @@ impl DrawableBox{
 	}
 }
 
-// Not convinced we need a struct for links here
-// For lines, arrows, connectors
-// struct DrawableLink{
-// 	strategy: BoxPlacementStrategy,
-// }
-
-
-
-
-
 
 

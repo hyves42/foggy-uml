@@ -41,7 +41,7 @@ use crate::layout::*;
 
 #[derive(Debug, PartialEq)]
 pub struct TableBuilder {
-    pub layout: TreeContainer<LayoutElement, LayoutGuid>,
+    pub layout: TreeContainer<LayoutBox, LayoutGuid>,
     pub direction: Direction,
     pub lanes: usize,
     pub gen_id: GuidManager<LayoutGuid>,
@@ -51,7 +51,7 @@ impl TableBuilder {
     pub fn new(direction: Direction, lanes: usize) -> Self {
         let mut gen = GuidManager::new();
         return TableBuilder {
-            layout: TreeContainer::new().with_root(LayoutElement::new(direction), gen.get()),
+            layout: TreeContainer::new().with_root(LayoutBox::new(direction), gen.get()),
             lanes: lanes,
             direction: direction,
             gen_id: gen,
@@ -64,13 +64,13 @@ impl TableBuilder {
 
         let line = self.layout.push_child(
                 self.layout.root_id().unwrap(), 
-                LayoutElement::new(self.direction.orthogonal()),
+                LayoutBox::new(self.direction.orthogonal()),
                 self.gen_id.get()
             ).unwrap();
         for _ in 0..self.lanes{
             let cell = self.layout.push_child(
                     line, 
-                    LayoutElement::new(self.direction),
+                    LayoutBox::new(self.direction),
                     self.gen_id.get()
                 ).unwrap();
             cells.push(cell);
@@ -86,7 +86,7 @@ impl TableBuilder {
         while let Some(line_uid) = line_iter.next(&self.layout){
             let cell = self.layout.push_child(
                     line_uid, 
-                    LayoutElement::new(self.direction),
+                    LayoutBox::new(self.direction),
                     self.gen_id.get()
                 ).unwrap();
             cells.push(cell);

@@ -1,6 +1,6 @@
 pub mod tablebuilder;
 pub mod drawable;
-pub mod placeable;
+pub mod diagram;
 use derive_more::{From, Into};
 
 // Type od ID used for components of the logical domain of the diagram
@@ -82,7 +82,7 @@ impl Direction {
 
 
 #[derive(Debug, PartialEq, Default)]
-pub struct LayoutElement {
+pub struct LayoutBox {
     pub constraint: BoxConstraints,
     pub dimensions: BoxContainer,
     pub direction: Direction,
@@ -90,9 +90,9 @@ pub struct LayoutElement {
 
 
 
-impl LayoutElement {
+impl LayoutBox {
     pub fn new(direction: Direction) -> Self {
-        LayoutElement {
+        LayoutBox {
             constraint: BoxConstraints::new(),
             dimensions: BoxContainer::new(),
             direction: direction,
@@ -101,10 +101,4 @@ impl LayoutElement {
 }
 
 
-#[cfg(test)]
-mod tests {
-    use super::*;
 
-
-    
-}
