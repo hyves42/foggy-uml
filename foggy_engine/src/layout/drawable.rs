@@ -1,10 +1,9 @@
 use crate::layout::*;
 
-
 pub enum BoxPlacementStrategy{
 	AtBox(LayoutGuid),   // Place relative to the BoxContainer of a layout container
-	AtObject(LayoutGuid),  // Place relative to an other drawable element
-	AtLink(LayoutGuid),  // eg:Place text on an arrow
+	AtObject(DiagramGuid),  // Place relative to an other drawable element
+	AtLink(LinkGuid),  // eg:Place text on an arrow
 	FromToBox(LayoutGuid, LayoutGuid), // Place over several layout elements
 	FromToObject (LayoutGuid, LayoutGuid),
 }

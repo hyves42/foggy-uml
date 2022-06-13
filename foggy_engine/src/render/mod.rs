@@ -20,7 +20,7 @@ pub trait Renderer {
 
     fn text_dimension(&self, text: &str, bold: bool, italic: bool) -> (u32, u32);
 
-    fn box_min_dimensions(&self) -> (u32, u32);
+    fn block_min_dimensions(&self) -> (u32, u32);
 
     fn line_keepout(&self) -> u32;
 
@@ -63,20 +63,18 @@ impl Engine {
 mod tests {
     use super::*;
 
-    pub struct DummyRender {
-        out: String,
-    }
+    pub struct DummyRender {}
 
     impl Renderer for DummyRender {
-        fn init_scene(&mut self, width: usize, height: usize) {}
+        fn init_scene(&mut self, _width: usize, _height: usize) {}
 
-        fn draw(&mut self, object: &RenderableItem) {}
+        fn draw(&mut self, _object: &RenderableItem) {}
 
-        fn text_dimension(&self, text: &str, bold: bool, italic: bool) -> (u32, u32) {
+        fn text_dimension(&self, _text: &str, _bold: bool, _italic: bool) -> (u32, u32) {
             (0, 0)
         }
 
-        fn box_min_dimensions(&self) -> (u32, u32) {
+        fn block_min_dimensions(&self) -> (u32, u32) {
             (0, 0)
         }
 
@@ -93,15 +91,15 @@ mod tests {
     pub struct DummyRender2 {}
 
     impl Renderer for DummyRender2 {
-        fn init_scene(&mut self, width: usize, height: usize) {}
+        fn init_scene(&mut self, _width: usize, _height: usize) {}
 
-        fn draw(&mut self, object: &RenderableItem) {}
+        fn draw(&mut self, _object: &RenderableItem) {}
 
-        fn text_dimension(&self, text: &str, bold: bool, italic: bool) -> (u32, u32) {
+        fn text_dimension(&self, _text: &str, _bold: bool, _italic: bool) -> (u32, u32) {
             (0, 0)
         }
 
-        fn box_min_dimensions(&self) -> (u32, u32) {
+        fn block_min_dimensions(&self) -> (u32, u32) {
             (0, 0)
         }
         fn line_keepout(&self) -> u32 {
@@ -116,7 +114,7 @@ mod tests {
     #[test]
     fn test() {
         // Just check that my lifetimes are OK
-        let mut renderer: DummyRender = DummyRender { out: String::new() };
+        let mut renderer: DummyRender = DummyRender {};
         let engine: Engine = Engine {};
 
         engine.render(&mut renderer);

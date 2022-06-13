@@ -3,9 +3,14 @@ pub mod drawable;
 pub mod diagram;
 use derive_more::{From, Into};
 
-// Type od ID used for components of the logical domain of the diagram
+// Type of ID used for components of the logical domain of the diagram
 #[derive(Debug, PartialEq, From, Into, Copy, Clone)]
 pub struct DiagramGuid(u64);
+// ids for links
+#[derive(Debug, PartialEq, From, Into, Copy, Clone)]
+pub struct LinkGuid(u64);
+
+
 // Type od ID used for components of the physical domain of the layout
 #[derive(Debug, PartialEq, From, Into, Copy, Clone)]
 pub struct LayoutGuid(u64);
@@ -95,7 +100,7 @@ impl LayoutBox {
         LayoutBox {
             constraint: BoxConstraints::new(),
             dimensions: BoxContainer::new(),
-            direction: direction,
+            direction,
         }
     }
 }

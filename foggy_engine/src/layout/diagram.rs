@@ -9,6 +9,10 @@ use crate::layout::*;
 // Basically a representation of all the things that need to be placed on the layout
 
 
+// ids for linklabels
+#[derive(Debug, PartialEq, From, Into, Copy, Clone)]
+pub struct LinkLabelGuid(u64);
+
 pub enum TextFormatType{
 	H1, 
 	H2, 
@@ -65,7 +69,7 @@ pub enum LinkLabelPosition{
 // Makes the logical link between a 'label' node and the link element
 // Several labels can be attached to a link
 pub struct LinkLabel{
-	pub link: DiagramGuid,  // ID of the link to attach the label to
+	pub link: LinkGuid,  // ID of the link to attach the label to
 	pub node: DiagramGuid, // ID of the label node
 	pub pos: LinkLabelPosition
 }
@@ -74,9 +78,12 @@ pub struct LinkLabel{
 pub struct Diagram{
 	// All the nodes of the diagram
   pub nodes: TreeContainer<Node, DiagramGuid>,
-  pub links: UidStore<Link, DiagramGuid>,
-  pub linklabels: UidStore<LinkLabel, DiagramGuid>,
-  //metadata, name, backlinks to source, etc.
+  pub links: UidStore<Link, LinkGuid>,
+  pub linklabels: UidStore<LinkLabel, LinkLabelGuid>,
+  pub node_ids: GuidManager<DiagramGuid>,
+  pub link_ids: GuidManager<LinkGuid>,
+  pub linklabel_ids: GuidManager<LinkLabelGuid>,
+  // + metadata, name, backlinks to source, etc.
 }
 
 impl Diagram {
@@ -85,6 +92,9 @@ impl Diagram {
   			nodes: TreeContainer::new(),
   			links: UidStore::new(),
   			linklabels: UidStore::new(),
+			  node_ids: GuidManager::new(),
+			  link_ids: GuidManager::new(),
+			  linklabel_ids: GuidManager::new(),
 		}
 	}
 }
