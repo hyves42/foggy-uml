@@ -1,11 +1,10 @@
 use std::convert::TryInto;
 use derive_more::{From, Into};
-use std::iter::Enumerate;
-use std::slice::Iter;
 
 // A generational unique IDs generator and storage system
 
-// For what we're doing here, 64bits should be plenty enough
+// A typical type definition for generational UIDs
+// It is advised to define your own guid types when using generational data store to take advantage of static type checking
 #[derive(Debug, PartialEq, From, Into, Copy, Clone)]
 pub struct Guid(u64);
 
@@ -94,12 +93,12 @@ where U:From<u64>, U:Into<u64>, U:Copy {
         UidStore { items: Vec::new() , yo:None }
     }
 
-    pub fn insert(&mut self, id: U, t: T) {
+    pub fn insert(&mut self, id: U, t: T)->Result<U,&str> {
         let idx = GuidManager::guid_id(id) as usize;
 
         // Don't overwrite existing value with insert()
         if let Some(Some((_, _))) = self.items.get(idx){
-            panic!();
+            return Err("Index is in use");
         }
 
         // Grow vec to the required size
@@ -107,6 +106,7 @@ where U:From<u64>, U:Into<u64>, U:Copy {
             self.items.push(None);
         }
         self.items[idx] = Some((GuidManager::guid_gen(id), t));
+        return Ok(id);
     }
 
     pub fn get(&self, id: U) -> Option<&T> {
@@ -232,21 +232,20 @@ mod tests {
         let mut gen:GuidManager<Guid> = GuidManager::new();
         let mut store :UidStore<u64, Guid> = UidStore::new();
         let id1 =gen.get();
-        store.insert(id1, 123456);
+        store.insert(id1, 123456).unwrap();
         let id2 =gen.get();
-        store.insert(id2, 1234567);
+        store.insert(id2, 1234567).unwrap();
         assert_eq!(store.get(id1), Some(&123456));
         assert_eq!(store.get(id2), Some(&1234567));
     }
 
     #[test]
-    #[should_panic]
     fn store_double_insert() {
         let mut gen:GuidManager<Guid> = GuidManager::new();
         let mut store :UidStore<u64, Guid> = UidStore::new();
         let id1 =gen.get();
-        store.insert(id1, 123456);
-        store.insert(id1, 1234567);
+        assert!(store.insert(id1, 123456).is_ok());
+        assert!(store.insert(id1, 1234567).is_err());
     }
 
 
@@ -255,9 +254,9 @@ mod tests {
         let mut gen:GuidManager<Guid> = GuidManager::new();
         let mut store: UidStore<u64, Guid> = UidStore::new();
         let id1 =gen.get();
-        store.insert(id1, 123456);
+        store.insert(id1, 123456).unwrap();
         let id2 =gen.get();
-        store.insert(id2, 1234567);
+        store.insert(id2, 1234567).unwrap();
         assert_eq!(store.get(id1), Some(&123456));
 
         store.drop(id1);
@@ -265,7 +264,7 @@ mod tests {
         gen.drop(id1);
 
         let id3 =gen.get();
-        store.insert(id3, 12345678);
+        store.insert(id3, 12345678).unwrap();
         assert_eq!(store.get(id3), Some(&12345678));
     }
 
@@ -275,15 +274,15 @@ mod tests {
         let mut gen:GuidManager<Guid> = GuidManager::new();
         let mut store: UidStore<u64, Guid> = UidStore::new();
         let id1 =gen.get();
-        store.insert(id1, 123456);
+        store.insert(id1, 123456).unwrap();
         let id2 =gen.get();
-        store.insert(id2, 1234567);
+        store.insert(id2, 1234567).unwrap();
         let id3 =gen.get();
-        store.insert(id3, 12345678);
+        store.insert(id3, 12345678).unwrap();
         store.drop(id2);
         gen.drop(id2);
         let id4 =gen.get();
-        store.insert(id4, 743567);
+        store.insert(id4, 743567).unwrap();
 
         let mut it = store.iter();
         assert_eq!(it.next(), Some((id1, &123456)));
