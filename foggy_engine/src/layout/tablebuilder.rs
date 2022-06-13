@@ -52,8 +52,8 @@ impl TableBuilder {
         let mut gen = GuidManager::new();
         return TableBuilder {
             layout: TreeContainer::new().with_root(LayoutBox::new(direction), gen.get()),
-            lanes: lanes,
-            direction: direction,
+            lanes,
+            direction,
             gen_id: gen,
         };
     }
@@ -235,9 +235,9 @@ mod tests {
     #[test]
     fn add_lanes() {
         let mut builder = TableBuilder::new(Direction::Vertical,3);
-        let line1_ids = builder.add_line();
-        let line2_ids = builder.add_line();
-        let line3_ids = builder.add_line();
+        builder.add_line();
+        builder.add_line();
+        builder.add_line();
 
         let new_lane = builder.add_lane();
 
@@ -250,11 +250,11 @@ mod tests {
     #[test]
     fn add_lanes_lines() {
         let mut builder = TableBuilder::new(Direction::Vertical,3);
-        let line1_ids = builder.add_line();
-        let line2_ids = builder.add_line();
-        let line3_ids = builder.add_line();
+        builder.add_line();
+        builder.add_line();
+        builder.add_line();
 
-        let new_lane = builder.add_lane();
+        builder.add_lane();
         let line4_ids = builder.add_line();
         assert_eq!(line4_ids.len(), 4);
         assert_eq!(builder.layout.id_by_path("0:3:0"),Some(line4_ids[0]));
