@@ -1,40 +1,64 @@
 use crate::render::*;
 
-
+#[allow(unused)]
 const BOX_LIGHT_HORIZONTAL:char = '\u{2500}'; // ─
+#[allow(unused)]
 const BOX_HEAVY_HORIZONTAL:char = '\u{2501}'; // ━
 const BOX_LIGHT_VERTICAL:char = '\u{2502}'; // │
+#[allow(unused)]
 const BOX_HEAVY_VERTICAL:char = '\u{2503}'; // ┃
+#[allow(unused)]
 const BOX_LIGHT_TRIPLE_DASH_HORIZONTAL:char = '\u{2504}'; // ┄
+#[allow(unused)]
 const BOX_HEAVY_TRIPLE_DASH_HORIZONTAL:char = '\u{2505}'; // ┅
+#[allow(unused)]
 const BOX_LIGHT_TRIPLE_DASH_VERTICAL:char = '\u{2506}'; //   ┆
+#[allow(unused)]
 const BOX_HEAVY_TRIPLE_DASH_VERTICAL:char = '\u{2507}'; //   ┇
+#[allow(unused)]
 const BOX_LIGHT_QUADRUPLE_DASH_HORIZONTAL:char = '\u{2508}'; //  ┈
+#[allow(unused)]
 const BOX_HEAVY_QUADRUPLE_DASH_HORIZONTAL:char = '\u{2509}'; //  ┉
+#[allow(unused)]
 const BOX_LIGHT_QUADRUPLE_DASH_VERTICAL:char = '\u{250A}'; //    ┊
+#[allow(unused)]
 const BOX_HEAVY_QUADRUPLE_DASH_VERTICAL:char = '\u{250B}'; //    ┋
 const BOX_LIGHT_DOWN_AND_RIGHT:char = '\u{250C}'; // ┌  
+#[allow(unused)]
 const BOX_HEAVY_DOWN_AND_RIGHT:char = '\u{250F}'; // ┏   
 const BOX_LIGHT_DOWN_AND_LEFT:char = '\u{2510}'; // ┐   
+#[allow(unused)]
 const BOX_HEAVY_DOWN_AND_LEFT:char = '\u{2513}'; // ┓   
 const BOX_LIGHT_UP_AND_RIGHT:char = '\u{2514}'; // └   
+#[allow(unused)]
 const BOX_HEAVY_UP_AND_RIGHT:char = '\u{2517}'; // ┗   
 const BOX_LIGHT_UP_AND_LEFT:char = '\u{2518}'; // ┘   
+#[allow(unused)]
 const BOX_HEAVY_UP_AND_LEFT:char = '\u{251B}'; // ┛   
 const BOX_LIGHT_VERTICAL_AND_RIGHT:char = '\u{251C}'; // ├   
+#[allow(unused)]
 const BOX_HEAVY_VERTICAL_AND_RIGHT:char = '\u{2523}'; // ┣   
 const BOX_LIGHT_VERTICAL_AND_LEFT:char = '\u{2524}'; // ┤   
+#[allow(unused)]
 const BOX_HEAVY_VERTICAL_AND_LEFT:char = '\u{252B}'; // ┫   
 const BOX_LIGHT_DOWN_AND_HORIZONTAL:char = '\u{252C}'; // ┬   
+#[allow(unused)]
 const BOX_HEAVY_DOWN_AND_HORIZONTAL:char = '\u{2533}'; // ┳   
 const BOX_LIGHT_UP_AND_HORIZONTAL:char = '\u{2534}'; // ┴   
+#[allow(unused)]
 const BOX_HEAVY_UP_AND_HORIZONTAL:char = '\u{253B}'; // ┻   
 const BOX_LIGHT_VERTICAL_AND_HORIZONTAL:char = '\u{253C}'; // ┼
+#[allow(unused)]
 const BOX_HEAVY_VERTICAL_AND_HORIZONTAL:char = '\u{254B}'; // ╋   
+#[allow(unused)]
 const BOX_LIGHT_DOUBLE_DASH_HORIZONTAL:char = '\u{254C}'; // ╌   
+#[allow(unused)]
 const BOX_HEAVY_DOUBLE_DASH_HORIZONTAL:char = '\u{254D}'; // ╍   
+#[allow(unused)]
 const BOX_LIGHT_DOUBLE_DASH_VERTICAL:char = '\u{254E}'; // ╎   
+#[allow(unused)]
 const BOX_HEAVY_DOUBLE_DASH_VERTICAL:char = '\u{254F}'; // ╏   
+#[allow(unused)]
 const BOX_LIGHT_ARC_DOWN_AND_RIGHT:char = '\u{256D}'; // ╭   
 const BOX_LIGHT_ARC_DOWN_AND_LEFT:char = '\u{256E}'; // ╮   
 const BOX_LIGHT_ARC_UP_AND_LEFT:char = '\u{256F}'; // ╯   
@@ -441,12 +465,12 @@ impl Renderer for AsciiRenderer {
         }
     }
 
-    fn text_dimension(&self, text: &str, bold: bool, italic: bool) -> (u32, u32) {
+    fn text_dimension(&self, text: &str, _bold: bool, _italic: bool) -> (u32, u32) {
         let len = text.chars().count();
         return (len as u32, 1);
     }
 
-    fn box_min_dimensions(&self) -> (u32, u32) {
+    fn block_min_dimensions(&self) -> (u32, u32) {
         return (3, 3);
     }
 
@@ -647,8 +671,6 @@ mod tests {
             "┴├├┼└┴├┼┴╰",
         ];
 
-
-        let mut renderer = AsciiRenderer::new();
 
         for i in 0..old.chars().count() {
             for j in 0..new.chars().count(){
