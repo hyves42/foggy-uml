@@ -135,6 +135,10 @@ where U:From<u64>, U:Into<u64>, U:Copy {
         }
     }
 
+    pub fn clear(&mut self){
+        self.items.clear();
+    }
+
     pub fn for_each<F>(&self, mut f: F)
     where F : FnMut(U, &T), {
         for (n, x) in self.items.iter().enumerate() {

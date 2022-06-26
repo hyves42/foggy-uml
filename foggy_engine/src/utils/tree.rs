@@ -246,6 +246,24 @@ where U:From<u64>, U:Into<u64>, U:Copy {
         Some(&mut c.data)
     }
 
+    pub fn left_sibling(&self, id: U) -> Option<(U, &T)> {
+        let c = self.flat.get(id)?;
+        let sibling = self.flat.get(c.sibling_left?)?;
+        Some((c.sibling_left?, &sibling.data))
+    }
+
+    pub fn right_sibling(&self, id: U) -> Option<(U, &T)> {
+        let c = self.flat.get(id)?;
+        let sibling = self.flat.get(c.sibling_right?)?;
+        Some((c.sibling_right?, &sibling.data))
+    }
+
+    pub fn parent(&self, id: U) -> Option<(U, &T)> {
+        let c = self.flat.get(id)?;
+        let parent = self.flat.get(c.parent?)?;
+        Some((c.parent? , &parent.data))
+    }
+
     // Return the number of nodes below node id
     // Panic if id is invalid
     pub fn len(&self, id:U) -> usize {
@@ -485,7 +503,7 @@ where U:From<u64>, U:Into<u64>, U:Copy {
             }
         }
         return Some((self.cur_id?, self.tree.get(self.cur_id?)?));
-    }    
+    }
 }
 
 

@@ -9,4 +9,4 @@ pub mod preprocessor;
 pub mod render;
 pub mod utils;
 
-
+mod tests;

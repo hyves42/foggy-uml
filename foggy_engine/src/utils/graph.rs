@@ -26,7 +26,6 @@ pub struct Digraph<T,W,U> {
     // Directed edges ordered by growing origin
     edges: Vec<DigraphEdge<W,U>>,
     backward_edges:Vec<DigraphEdge<W,U>>,
-
     nodes: UidStore<DigraphNode<T>, U>,
 }
 
@@ -47,19 +46,14 @@ where U:From<u64>, U:Into<u64>, U:Copy {
         let mut i = self.edges.len() / 2;
         let mut step = i;
         let orig:u64 = id.into();
-        // Find the first occurence of id in edges list
-        //println!("find_first_edge_inf {}", orig);
-
+        // Find the first occurence of id in edges list by dichotomy
         loop{
             step = (step+1)/2;
 
-            //println!("i= {}, edges.len = {}", i, self.edges.len());
             if i == self.edges.len(){
                 return i;
             }
             if let Some(e) = self.edges.get(i){
-                //println!("orig = {}, edges[i].orig= {}", orig, e.orig.into());
-
                 if orig > e.orig.into(){
                     if i==0{
                         // Special case for array of length 1
@@ -173,7 +167,7 @@ where U:From<u64>, U:Into<u64>, U:Copy {
 // until all input edges have been explored.
 // In other words, wait for your buddies at the intersection before continuing to walk
 
-// this works if:
+// this works only if:
 // - there is only one input node for the graph
 // - there is no cyclic dependency
 
@@ -244,18 +238,24 @@ struct SolverEdge{
     length: u32,
 }
 
-struct SolverNode{
-    min_val: Option<u32>,
-    max_val: Option<u32>,
+pub struct SolverNode{
+    pub min_val: Option<u32>,
+    pub max_val: Option<u32>,
     //dist0: Option<u32>, // distance to previous edge X
     //dist1: Option<u32>, // distance to next edge X
 }
 
 
-struct SolverGraph<U>{
+pub struct SolverGraph<U>{
     graph: Digraph<SolverNode, SolverEdge, U>
 }
 
+
+// Iterate over solver nodes
+pub struct SolverNodeIterator<'a, U> {
+    graph: &'a SolverGraph<U>,
+    iter: UidStoreIterator<'a, DigraphNode<SolverNode>, U>
+}
 
 impl<U> SolverGraph<U>
 where U:From<u64>, U:Into<u64>, U:Copy {
@@ -321,6 +321,32 @@ where U:From<u64>, U:Into<u64>, U:Copy {
             Some(max) => Some((node.data.min_val? + max) / 2)
         };
     }
+
+    pub fn nodes_iter(&self) -> SolverNodeIterator<U>{
+        SolverNodeIterator::new(self)
+    }
+}
+
+
+
+impl <'a, U> SolverNodeIterator<'a, U>
+where U:From<u64>, U:Into<u64>, U:Copy {
+    pub fn new(graph :&'a SolverGraph<U>) -> Self {
+        SolverNodeIterator{
+            graph,
+            iter: graph.graph.nodes.iter()
+        }
+    }
+}
+
+impl <'a, U> Iterator for SolverNodeIterator<'a, U>
+where U:From<u64>, U:Into<u64>, U:Copy {
+    type Item = (U, &'a SolverNode);
+
+    fn next(&mut self) -> Option<(U, &'a SolverNode)> {
+        let (id, node) = self.iter.next()?;
+        Some((id, &node.data))
+    }    
 }
 
 
