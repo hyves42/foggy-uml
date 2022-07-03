@@ -32,7 +32,7 @@ pub struct Digraph<T,W,U> {
 
 
 impl<T,W,U> Digraph<T,W,U>
-where U:From<u64>, U:Into<u64>, U:Copy {
+where U:From<u64>, U:Into<u64>, U:Copy, U: std::fmt::Debug, W: std::fmt::Debug {
     pub fn new() -> Self {
         Digraph {
             root: None,
@@ -48,12 +48,13 @@ where U:From<u64>, U:Into<u64>, U:Copy {
         let orig:u64 = id.into();
         // Find the first occurence of id in edges list by dichotomy
         loop{
-            step = (step+1)/2;
+            step = (step/2).max(1);
 
             if i == self.edges.len(){
                 return i;
             }
             if let Some(e) = self.edges.get(i){
+                //println!(" i = {:?}, id = {:?}, id[i] = {:?}, step={:?}", i, orig, e.orig, step);
                 if orig > e.orig.into(){
                     if i==0{
                         // Special case for array of length 1
@@ -67,6 +68,7 @@ where U:From<u64>, U:Into<u64>, U:Copy {
                     }
                     // make sure that id > e-1.orig
                     if let Some(e2) = self.edges.get(i-1){
+                        //println!(" i = {:?}, id[i-1] = {:?}, step={:?}", i, e2.orig, step);
                         if orig > e2.orig.into(){
                             // Found it
                             return i;
@@ -81,10 +83,14 @@ where U:From<u64>, U:Into<u64>, U:Copy {
     }
 
     pub fn add_edge(&mut self, orig:U, dest:U, weight:W){
+        //println!("Edges before : {:?} (self={:p})", self.edges, &self);
+        //println!(" Try to insert orig {:?} to {:?}", orig, dest);
         // add edge in list, sorted by origin
         let idx = self._find_first_edge_inf(orig);
 
         self.edges.insert(idx, DigraphEdge{orig, dest, weight});
+        //println!(" Insert at idx {:?}", idx);
+        //println!(" Edges now : {:?}", self.edges);
 
         let orig_node = self.nodes.get_mut(orig).unwrap();
         orig_node.nb_out += 1;
@@ -110,7 +116,8 @@ where U:From<u64>, U:Into<u64>, U:Copy {
 
 
 
-// Walk through adjacent output nodes 
+// Walk through adjacent output nodes
+#[derive(Debug, PartialEq)]
 pub struct DigraphNodeOutWalk<U>{
     node: U,
     index: Option<usize>,
@@ -126,7 +133,7 @@ where U:From<u64>, U:Into<u64>, U:Copy {
     }
 
     pub fn next<T,W> (&mut self, graph: &Digraph<T,W,U>) -> Option<(W,U)>
-    where W:Copy {
+    where W:Copy, U:std::fmt::Debug,  W:std::fmt::Debug {
         // if I'm already iterating through edges
         if let Some(id) = self.index{
             if id + 1 >= graph.edges.len(){
@@ -171,7 +178,7 @@ where U:From<u64>, U:Into<u64>, U:Copy {
 // - there is only one input node for the graph
 // - there is no cyclic dependency
 
-
+#[derive(Debug, PartialEq)]
 pub struct DigraphBuddyWalk<U>{
     current_node: U,
     current_walk: DigraphNodeOutWalk<U>,
@@ -192,7 +199,7 @@ where U:From<u64>, U:Into<u64>, U:Copy {
 
     // return a tuple (weight, origin, destination)
     pub fn next<T,W> (&mut self, graph: &Digraph<T,W,U>) -> Option<(W,U,U)>
-    where W:Copy {
+    where W:Copy, U: std::fmt::Debug, W: std::fmt::Debug {
         loop{
             let next = self.current_walk.next(graph);
             match next{
@@ -238,6 +245,7 @@ struct SolverEdge{
     length: u32,
 }
 
+#[derive(Debug, PartialEq)]
 pub struct SolverNode{
     pub min_val: Option<u32>,
     pub max_val: Option<u32>,
@@ -245,7 +253,7 @@ pub struct SolverNode{
     //dist1: Option<u32>, // distance to next edge X
 }
 
-
+#[derive(Debug, PartialEq)]
 pub struct SolverGraph<U>{
     graph: Digraph<SolverNode, SolverEdge, U>
 }
@@ -258,7 +266,7 @@ pub struct SolverNodeIterator<'a, U> {
 }
 
 impl<U> SolverGraph<U>
-where U:From<u64>, U:Into<u64>, U:Copy {
+where U:From<u64>, U:Into<u64>, U:Copy, U: std::fmt::Debug {
     pub fn new() -> Self {
         SolverGraph{
             graph: Digraph::new()
