@@ -2,7 +2,7 @@ use crate::utils::uid::*;
 use crate::utils::tree::*;
 use crate::utils::graph::*;
 use crate::layout::*;
-
+use std::collections::HashMap;
 
 
 
@@ -94,11 +94,28 @@ impl Direction {
 
 
 #[derive(Copy, Clone, Debug, PartialEq)]
+pub struct TableRootCtx{
+    // Number of lanes in the table
+    // nb: the number of lines is simply the number of children
+    pub lanes: usize,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct TableLaneCtx{
+    // A reference to the table root box
+    pub root_id: LayoutGuid,
+}
+
+// The specific types of layout box
+// For some layout construction we may need to store some additional context
+// Keep in mind additional context will impact the seize of all objects
+// So keep the context small
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum LayoutBoxType {
     Basic,
-    TableRoot,
+    TableRoot(TableRootCtx),
     TableLine,
-    TableLane,
+    TableLane(TableLaneCtx),
 }
  
 
@@ -127,7 +144,6 @@ pub struct LayoutBox {
     pub bottom_right: DimensionGuid,
     pub direction: Direction,
     pub t: LayoutBoxType,
-    pub ctx: Option<LayoutCtx>,
 }
 
 
@@ -140,7 +156,6 @@ impl LayoutBox {
             bottom_right:bottom_right_id,
             direction,
             t: LayoutBoxType::Basic,
-            ctx: None
         }
     }
 
@@ -149,31 +164,9 @@ impl LayoutBox {
         self
     }
 
-    pub fn with_context(mut self, context: LayoutCtx) -> Self{
-        self.ctx = Some(context);
-        self
-    }
 }
 
-#[derive(Debug, PartialEq)]
-pub struct TableRootCtx{
-    // Number of lanes in the table
-    // nb: the number of lines is simply the number of children
-    pub lanes: usize,
-}
 
-#[derive(Debug, PartialEq)]
-pub struct TableLaneCtx{
-    // A reference to the table root box
-    pub root_id: LayoutGuid,
-}
-
-// For some layout construction we may need to store some additional context
-#[derive(Debug, PartialEq)]
-pub enum LayoutCtx{
-    TableRoot(TableRootCtx),
-    TableLane(TableLaneCtx),
-}
 
 // The root container of all the diagram physical layout.
 // Owns all the layout boxes and the id generator
@@ -213,27 +206,24 @@ impl Layout {
 
     // Table stuff
     pub fn create_table(&mut self, root:LayoutGuid, direction: Direction, lanes: usize){
+        if lanes ==0{
+            panic!();
+        }
         if let Some(l) = self.tree.get_mut(root){
-            l.t = LayoutBoxType::TableRoot;
-            l.ctx = Some(LayoutCtx::TableRoot(TableRootCtx {lanes}));
+            if l.t != LayoutBoxType::Basic{
+                panic!();
+            }
+            l.t = LayoutBoxType::TableRoot(TableRootCtx {lanes});
         }
     }
 
     pub fn add_line(&mut self, root:LayoutGuid) -> Vec<LayoutGuid>{
         // Get the table ctx
         let root_box = self.tree.get(root).unwrap();
-        if root_box.t != LayoutBoxType::TableRoot{ 
-            panic!();
-        }
-        //Table root must have a context
+
         let lanes;
-        if let Some(ctx) = &root_box.ctx {
-            if let LayoutCtx::TableRoot(c) = ctx {
-                lanes = c.lanes;    
-            }
-            else{
-                panic!();
-            }
+        if let LayoutBoxType::TableRoot(ctx) = &root_box.t {
+            lanes = ctx.lanes;    
         }
         else{
             panic!();
@@ -254,8 +244,7 @@ impl Layout {
             let cell = self.tree.push_child(
                     line, 
                     LayoutBox::new(self.direction, self.dimension_id.get(),self.dimension_id.get())
-                        .with_type(LayoutBoxType::TableLane)
-                        .with_context(LayoutCtx::TableLane(TableLaneCtx{root_id:root})),
+                        .with_type(LayoutBoxType::TableLane(TableLaneCtx{root_id:root})),
                     self.layout_id.get()
                 ).unwrap();
             cells.push(cell);
@@ -266,18 +255,10 @@ impl Layout {
     pub fn add_lane(&mut self, root:LayoutGuid) -> Vec<LayoutGuid>{
         // Get the table ctx
         let root_box = self.tree.get(root).unwrap();
-        if root_box.t != LayoutBoxType::TableRoot{
-            panic!();
-        }
-        //Table root must have a context
+
         let lanes;
-        if let Some(ctx) = &root_box.ctx {
-            if let LayoutCtx::TableRoot(c) = ctx{
-                lanes = c.lanes;
-            }
-            else{
-                panic!();
-            }
+        if let LayoutBoxType::TableRoot(ctx) = &root_box.t {
+            lanes = ctx.lanes;
         }
         else{
             panic!();
@@ -290,14 +271,14 @@ impl Layout {
             let cell = self.tree.push_child(
                     line_uid, 
                     LayoutBox::new(self.direction, self.dimension_id.get(),self.dimension_id.get())
-                        .with_type(LayoutBoxType::TableLane),
+                        .with_type(LayoutBoxType::TableLane(TableLaneCtx{root_id:root})),
                     self.layout_id.get()
                 ).unwrap();
             cells.push(cell);
         }
 
         let root_mut = self.tree.get_mut(root).unwrap();
-        root_mut.ctx = Some(LayoutCtx::TableRoot(TableRootCtx {lanes:lanes+1}));
+        root_mut.t = LayoutBoxType::TableRoot(TableRootCtx {lanes:lanes+1});
         return cells;
     }
 
@@ -317,9 +298,11 @@ impl Layout {
         self.box_x.clear();
         self.box_y.clear();
 
-
         let mut solver_x : SolverGraph<DimensionGuid> = SolverGraph::new();
         let mut solver_y : SolverGraph<DimensionGuid> = SolverGraph::new();
+
+        // a list of virtual box dimensions to align 
+        let mut hash:HashMap<LayoutGuid, Vec<DimensionGuid>> = HashMap::new();
 
         //First add all nodes to solver graph
         for (id, b) in self.tree.depth_iter(){
@@ -329,19 +312,36 @@ impl Layout {
             solver_y.add_node(b.top_left);
             solver_y.add_node(b.bottom_right);
 
-            if let Some(w) = b.constraint.pref_w{
-                solver_x.add_edge(b.top_left, b.bottom_right, w);
-            }
-            if let Some(h) = b.constraint.pref_h{
-                solver_y.add_edge(b.top_left, b.bottom_right, h);
+            solver_x.add_edge(b.top_left, b.bottom_right, 
+                b.constraint.pref_w.unwrap_or(0));
+            
+            solver_y.add_edge(b.top_left, b.bottom_right, 
+                b.constraint.pref_h.unwrap_or(0));
+
+            // For tables, add lane constraint nodes to the solver
+            if let LayoutBoxType::TableRoot(ctx) = b.t{
+                let nb_nodes = ctx.lanes-1;
+                let mut points:Vec<DimensionGuid> = Vec::new();
+                for _ in 0..nb_nodes{
+                    let dim_id = self.dimension_id.get();
+                    points.push(dim_id);
+                    match b.direction {
+                        Direction::Vertical => solver_x.add_node(dim_id),
+                        Direction::Horizontal => solver_y.add_node(dim_id)
+                    }
+                }
+                hash.insert(id, points);
             }
         }
 
         // Then constraint edges
-        for (id, b) in self.tree.depth_iter(){
+        let mut walk: TreeDepthIdWalk<LayoutGuid> = TreeDepthIdWalk::new();
+        while let Some(id) = walk.next(&self.tree) {
+            let b = self.tree.get(id).unwrap();
             let direction: Direction;
             let p_topleft:DimensionGuid;
             let p_bottomright:DimensionGuid;
+
 
             if let Some((_, p)) = self.tree.parent(id) {
                 direction = p.direction;
@@ -357,57 +357,118 @@ impl Layout {
                 Direction::Vertical =>{
                     solver_x.add_edge(p_topleft, b.top_left, 0);
                     solver_x.add_edge(b.bottom_right, p_bottomright, 0);
-                    if let Some((_, left)) = self.tree.left_sibling(id){
-                        // Add  constraint to previous sibling
-                        solver_y.add_edge(left.bottom_right, b.top_left, 0);
-                    }
-                    else{
-                        // add constraint to parent
-                        solver_y.add_edge(p_topleft, b.top_left, 0);
-                    }
 
-                    if let Some((_, right)) = self.tree.right_sibling(id){
-                        // Add  constraint to next sibling
-                        solver_y.add_edge(b.bottom_right, right.top_left, 0);
+                    // Table layout constraints are specific
+                    if let LayoutBoxType::TableLane(ctx) = b.t {
+                        let lane_idx = walk.path().last().unwrap();
+                        let limits = hash.get(&ctx.root_id).unwrap();
+
+                        if *lane_idx > 0 {
+                            //left constraint to table lane
+                            let left_id =  limits[*lane_idx-1];
+                            solver_y.add_edge(left_id, b.top_left, 0);
+                        }
+                        else {
+                            //left constraint to parent
+                            solver_y.add_edge(p_topleft, b.top_left, 0);
+                        }
+                        if *lane_idx < limits.len() {
+                            //right constraint to table line
+                            let right_id =  limits[*lane_idx];
+                            solver_y.add_edge(b.bottom_right, right_id, 0);
+                        }                            
+                        else {
+                            //last  lane, add right constraint to parent
+                            solver_y.add_edge(b.bottom_right, p_bottomright, 0);
+                        }                       
                     }
-                    else{
-                        // add constraint to parent
-                        solver_y.add_edge(b.bottom_right, p_bottomright, 0);
-                    }
+                    else { // generic box constraints
+                        if let Some((_, left)) = self.tree.left_sibling(id){
+                            // Add  constraint to previous sibling
+                            solver_y.add_edge(left.bottom_right, b.top_left, 0);
+                        }
+                        else{
+                            // add constraint to parent
+                            solver_y.add_edge(p_topleft, b.top_left, 0);
+                        }
+
+                        if let Some((_, right)) = self.tree.right_sibling(id){
+                            // Add  constraint to next sibling
+                            solver_y.add_edge(b.bottom_right, right.top_left, 0);
+                        }
+                        else{
+                            // add constraint to parent
+                            solver_y.add_edge(b.bottom_right, p_bottomright, 0);
+                        }  
+                    }              
                 },
                 Direction::Horizontal =>{
                     solver_y.add_edge(p_topleft, b.top_left, 0);
                     solver_y.add_edge(b.bottom_right, p_bottomright, 0);
-                    if let Some((_, left)) = self.tree.left_sibling(id){
-                        // Add  constraint to previous sibling
-                        solver_x.add_edge(left.bottom_right, b.top_left, 0);
-                    }
-                    else{
-                        // add constraint to parent
-                        solver_x.add_edge(p_topleft, b.top_left, 0);
-                    }
 
-                    if let Some((_, right)) = self.tree.right_sibling(id){
-                        // Add  constraint to next sibling
-                        solver_x.add_edge(b.bottom_right, right.top_left, 0);
+                    // Table layout constraints are specific
+                    if let LayoutBoxType::TableLane(ctx) = b.t {
+                        let lane_idx = walk.path().last().unwrap();
+                        let limits = hash.get(&ctx.root_id).unwrap();
+
+                        if *lane_idx > 0 {
+                            //left constraint to table lane
+                            let left_id =  limits[*lane_idx-1];
+                            solver_x.add_edge(left_id, b.top_left, 0);
+                        }
+                        else {
+                            //left constraint to parent
+                            solver_x.add_edge(p_topleft, b.top_left, 0);
+                        }
+                        if *lane_idx < limits.len() {
+                            //right constraint to table line
+                            let right_id =  limits[*lane_idx];
+                            solver_x.add_edge(b.bottom_right, right_id, 0);
+                        }                            
+                        else {
+                            //last  lane, add right constraint to parent
+                            solver_x.add_edge(b.bottom_right, p_bottomright, 0);
+                        }
                     }
-                    else{
-                        // add constraint to parent
-                        solver_x.add_edge(b.bottom_right, p_bottomright, 0);
+                    else{ // generic box constraints
+                        if let Some((_, left)) = self.tree.left_sibling(id){
+                            // Add  constraint to previous sibling
+                            solver_x.add_edge(left.bottom_right, b.top_left, 0);
+                        }
+                        else{
+                            // add constraint to parent
+                            solver_x.add_edge(p_topleft, b.top_left, 0);
+                        }
+
+                        if let Some((_, right)) = self.tree.right_sibling(id){
+                            // Add  constraint to next sibling
+                            solver_x.add_edge(b.bottom_right, right.top_left, 0);
+                        }
+                        else{
+                            // add constraint to parent
+                            solver_x.add_edge(b.bottom_right, p_bottomright, 0);
+                        }
                     }
                 }
             }
         }
+
+        //println!(" Boxes x : {:?}", self.tree);
+        //println!(" Solver x : {:?}", solver_x);
+        //println!(" Solver y : {:?}", solver_y);
+
         let topleft = self.tree.get(self.get_root()).unwrap().top_left;
         solver_x.solve(topleft);
         solver_y.solve(topleft);
+
+
 
         for (id, n) in solver_x.nodes_iter(){
             if let Some(solution) = n.min_val{
                 self.box_x.insert(id, solution);
             }
             else{ 
-                return Err("Some dimensions were not solved");
+                return Err("Some x dimensions were not solved");
             }
         }
         for (id, n) in solver_y.nodes_iter(){
@@ -415,7 +476,15 @@ impl Layout {
                 self.box_y.insert(id, solution);
             }
             else{ 
-                return Err("Some dimensions were not solved");
+                return Err("Some y dimensions were not solved");
+            }
+        }
+
+
+        //Release the table dimsnsions constraints
+        for (_, table) in hash.iter() {
+            for id in table.iter(){
+                self.dimension_id.drop(*id);
             }
         }
         Ok(42)
@@ -436,26 +505,41 @@ mod tests {
 
         let cell1 = layout.tree.push_child(
                     layout.get_root(), 
-                    LayoutBox::new(Direction::Horizontal, layout.dimension_id.get(),layout.dimension_id.get())
-                        .with_type(LayoutBoxType::TableLane),
+                    LayoutBox::new(Direction::Horizontal, layout.dimension_id.get(),layout.dimension_id.get()),
+                    layout.layout_id.get()
+                ).unwrap();
+
+        let c1 = layout.tree.get_mut(cell1).unwrap();
+        c1.constraint.pref_w = Some(10);
+        c1.constraint.pref_h = Some(10);
+        layout.solve().unwrap();
+
+        assert_eq!(layout.box_dimensions(layout.get_root()), Ok((0,0,10,10)));
+    }
+
+
+    #[test]
+    fn layout_solve2() {
+        let mut layout = Layout::new(Direction::Vertical);
+
+        let cell1 = layout.tree.push_child(
+                    layout.get_root(), 
+                    LayoutBox::new(Direction::Horizontal, layout.dimension_id.get(),layout.dimension_id.get()),
                     layout.layout_id.get()
                 ).unwrap();
         let cell2 = layout.tree.push_child(
                     layout.get_root(), 
-                    LayoutBox::new(Direction::Horizontal, layout.dimension_id.get(),layout.dimension_id.get())
-                        .with_type(LayoutBoxType::TableLane),
+                    LayoutBox::new(Direction::Horizontal, layout.dimension_id.get(),layout.dimension_id.get()),
                     layout.layout_id.get()
                 ).unwrap();
         let cell21 = layout.tree.push_child(
                     cell2, 
-                    LayoutBox::new(Direction::Vertical, layout.dimension_id.get(),layout.dimension_id.get())
-                        .with_type(LayoutBoxType::TableLane),
+                    LayoutBox::new(Direction::Vertical, layout.dimension_id.get(),layout.dimension_id.get()),
                     layout.layout_id.get()
                 ).unwrap();
         let cell22 = layout.tree.push_child(
                     cell2, 
-                    LayoutBox::new(Direction::Vertical, layout.dimension_id.get(),layout.dimension_id.get())
-                        .with_type(LayoutBoxType::TableLane),
+                    LayoutBox::new(Direction::Vertical, layout.dimension_id.get(),layout.dimension_id.get()),
                     layout.layout_id.get()
                 ).unwrap();
         {
@@ -474,16 +558,13 @@ mod tests {
         assert_eq!(layout.box_dimensions(layout.get_root()), Ok((0,0,12,17)));
     }
 
-
     #[test]
     fn table_build() {
         let mut layout = Layout::new(Direction::Vertical);
         layout.create_table(layout.get_root(), Direction::Vertical, 3);
 
         let root = layout.tree.get(layout.get_root()).unwrap();
-        assert_eq!(root.t, LayoutBoxType::TableRoot);
-        assert_eq!(root.ctx, Some(LayoutCtx::TableRoot(TableRootCtx{lanes:3})));
-
+        assert_eq!(root.t, LayoutBoxType::TableRoot(TableRootCtx{lanes:3}));
     }    
 
     #[test]
@@ -492,17 +573,17 @@ mod tests {
         layout.create_table(layout.get_root(), Direction::Vertical, 4);
         let line1_ids = layout.add_line(layout.get_root());
         assert_eq!(line1_ids.len(), 4);
-        assert_eq!(layout.tree.id_by_path("0:0:0"),Some(line1_ids[0]));
-        assert_eq!(layout.tree.id_by_path("0:0:1"),Some(line1_ids[1]));
-        assert_eq!(layout.tree.id_by_path("0:0:2"),Some(line1_ids[2]));
-        assert_eq!(layout.tree.id_by_path("0:0:3"),Some(line1_ids[3]));
+        assert_eq!(layout.tree.id_by_path_str("0:0:0"),Some(line1_ids[0]));
+        assert_eq!(layout.tree.id_by_path_str("0:0:1"),Some(line1_ids[1]));
+        assert_eq!(layout.tree.id_by_path_str("0:0:2"),Some(line1_ids[2]));
+        assert_eq!(layout.tree.id_by_path_str("0:0:3"),Some(line1_ids[3]));
 
         let line2_ids = layout.add_line(layout.get_root());
         assert_eq!(line2_ids.len(), 4);
-        assert_eq!(layout.tree.id_by_path("0:1:0"),Some(line2_ids[0]));
-        assert_eq!(layout.tree.id_by_path("0:1:1"),Some(line2_ids[1]));
-        assert_eq!(layout.tree.id_by_path("0:1:2"),Some(line2_ids[2]));
-        assert_eq!(layout.tree.id_by_path("0:1:3"),Some(line2_ids[3]));
+        assert_eq!(layout.tree.id_by_path_str("0:1:0"),Some(line2_ids[0]));
+        assert_eq!(layout.tree.id_by_path_str("0:1:1"),Some(line2_ids[1]));
+        assert_eq!(layout.tree.id_by_path_str("0:1:2"),Some(line2_ids[2]));
+        assert_eq!(layout.tree.id_by_path_str("0:1:3"),Some(line2_ids[3]));
     }
 
     #[test]
@@ -517,10 +598,10 @@ mod tests {
         let new_lane = layout.add_lane(layout.get_root());
 
         let root = layout.tree.get(layout.get_root()).unwrap();
-        assert_eq!(root.ctx, Some(LayoutCtx::TableRoot(TableRootCtx{lanes:4})));
-        assert_eq!(layout.tree.id_by_path("0:0:3"),Some(new_lane[0]));
-        assert_eq!(layout.tree.id_by_path("0:1:3"),Some(new_lane[1]));
-        assert_eq!(layout.tree.id_by_path("0:2:3"),Some(new_lane[2]));
+        assert_eq!(root.t, LayoutBoxType::TableRoot(TableRootCtx{lanes:4}));
+        assert_eq!(layout.tree.id_by_path_str("0:0:3"),Some(new_lane[0]));
+        assert_eq!(layout.tree.id_by_path_str("0:1:3"),Some(new_lane[1]));
+        assert_eq!(layout.tree.id_by_path_str("0:2:3"),Some(new_lane[2]));
     }
 
     #[test]
@@ -535,14 +616,14 @@ mod tests {
         layout.add_lane(layout.get_root());
         let line4_ids = layout.add_line(layout.get_root());;
         let root = layout.tree.get(layout.get_root()).unwrap();
-        assert_eq!(root.ctx, Some(LayoutCtx::TableRoot(TableRootCtx{lanes:4})));
-        assert_eq!(layout.tree.id_by_path("0:3:0"),Some(line4_ids[0]));
-        assert_eq!(layout.tree.id_by_path("0:3:1"),Some(line4_ids[1]));
-        assert_eq!(layout.tree.id_by_path("0:3:2"),Some(line4_ids[2]));
-        assert_eq!(layout.tree.id_by_path("0:3:3"),Some(line4_ids[3]));
+        assert_eq!(root.t, LayoutBoxType::TableRoot(TableRootCtx{lanes:4}));
+        assert_eq!(layout.tree.id_by_path_str("0:3:0"),Some(line4_ids[0]));
+        assert_eq!(layout.tree.id_by_path_str("0:3:1"),Some(line4_ids[1]));
+        assert_eq!(layout.tree.id_by_path_str("0:3:2"),Some(line4_ids[2]));
+        assert_eq!(layout.tree.id_by_path_str("0:3:3"),Some(line4_ids[3]));
     }
 
-    //#[test]
+    #[test]
     fn table_constraints_vertical1() {
         let mut layout = Layout::new(Direction::Vertical);
         layout.create_table(layout.get_root(), Direction::Vertical, 2);
@@ -567,69 +648,26 @@ mod tests {
 
         // Verify the layout of individual cells
         {
-            // let cell = layout.tree.get(line0_ids[0]).unwrap();
-            // assert_eq!(cell.dimensions.x, 0);
-            // assert_eq!(cell.dimensions.y, 0);
-            // assert_eq!(cell.dimensions.w, 10);
-            // assert_eq!(cell.dimensions.h, 10);
             assert_eq!(layout.box_dimensions(line0_ids[0]), Ok((0, 0, 10, 10)));
         }
         {
-            //let cell = layout.tree.get(line0_ids[1]).unwrap();
-            // assert_eq!(cell.dimensions.x, 10);
-            // assert_eq!(cell.dimensions.y, 0);
-            // assert_eq!(cell.dimensions.w, 20);
-            // assert_eq!(cell.dimensions.h, 10);
-            assert_eq!(layout.box_dimensions(line0_ids[1]), Ok((10, 0, 30, 10)));
-
+            //Only assumptions about the position, not the size because we didn't put any constraint on size
+            let dimensions= layout.box_dimensions(line0_ids[1]).unwrap();
+            assert_eq!(dimensions.0, 10);
+            assert_eq!(dimensions.1, 0);   
         }
         {
-            // let cell = layout.tree.get(line1_ids[0]).unwrap();
-            // assert_eq!(cell.dimensions.x, 0);
-            // assert_eq!(cell.dimensions.y, 10);
-            // assert_eq!(cell.dimensions.w, 10);
-            // assert_eq!(cell.dimensions.h, 20);
-            assert_eq!(layout.box_dimensions(line1_ids[0]), Ok((0, 10, 10, 30)));
+            //Only assumptions about the position, not the size because we didn't put any constraint on size
+            let dimensions= layout.box_dimensions(line1_ids[0]).unwrap();
+            assert_eq!(dimensions.0, 0);
+            assert_eq!(dimensions.1, 10);
         }
         {
-            // let cell = layout.tree.get(line1_ids[1]).unwrap();
-            // assert_eq!(cell.dimensions.x, 10);
-            // assert_eq!(cell.dimensions.y, 10);
-            // assert_eq!(cell.dimensions.w, 20);
-            // assert_eq!(cell.dimensions.h, 20);
             assert_eq!(layout.box_dimensions(line1_ids[1]), Ok((10, 10, 30, 30)));
         }
 
-
-
-        // verify the lines layout
-        {
-            // let cell = layout.tree.get(layout.tree.id_by_path("0:0").unwrap()).unwrap();
-            // assert_eq!(cell.dimensions.x, 0);
-            // assert_eq!(cell.dimensions.y, 0);
-            // assert_eq!(cell.dimensions.w, 30);
-            // assert_eq!(cell.dimensions.h, 10);
-            assert_eq!(layout.box_dimensions(layout.tree.id_by_path("0:0").unwrap()), Ok((0, 0, 30, 10)));
-
-        }
-        {
-            // let cell = layout.tree.get(layout.tree.id_by_path("0:1").unwrap()).unwrap();
-            // assert_eq!(cell.dimensions.x, 0);
-            // assert_eq!(cell.dimensions.y, 10);
-            // assert_eq!(cell.dimensions.w, 30);
-            // assert_eq!(cell.dimensions.h, 20);
-            assert_eq!(layout.box_dimensions(layout.tree.id_by_path("0:1").unwrap()), Ok((0, 10, 30, 30)));
-        }
-
-        // Verify the root layout
-        {
-            // let cell = layout.tree.get(layout.tree.root_id().unwrap()).unwrap();
-            // assert_eq!(cell.dimensions.x, 0);
-            // assert_eq!(cell.dimensions.y, 0);
-            // assert_eq!(cell.dimensions.w, 30);
-            // assert_eq!(cell.dimensions.h, 30);
-            assert_eq!(layout.box_dimensions(layout.tree.root_id().unwrap()), Ok((0, 0, 30, 30)));
-        }
+        // Verify the root dimensions
+        assert_eq!(layout.box_dimensions(layout.tree.root_id().unwrap()), Ok((0, 0, 30, 30)));
 
     }
 
