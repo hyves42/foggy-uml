@@ -37,13 +37,19 @@ pub struct TreeChildrenIterator<'a, T, U> {
 // Iterate depth-first over elements
 pub struct TreeDepthIterator<'a, T, U> {
     tree: &'a TreeContainer<T, U>,
-    cur_id: Option<U>
+    walk: TreeDepthIdWalk<U>
 }
 
 // Visit children nodes without holding a reference to the tree
 pub struct ChildrenIdWalk<U> {
     parent: U,
     cur_id: Option<U>
+}
+
+// Visit tree depth-first without holding a reference to the tree
+pub struct TreeDepthIdWalk<U> {
+    cur_id: Option<U>,
+    path: Vec<usize>
 }
 
 impl<T, U> TreeNode<T, U>
@@ -291,7 +297,7 @@ where U:From<u64>, U:Into<u64>, U:Copy {
     // "0" is the root
     // "0:1" is the first child of the root
     // etc.
-    pub fn id_by_path(&self, path: &str) -> Option<U> {
+    pub fn id_by_path_str(&self, path: &str) -> Option<U> {
         let mut iter = path.split(':').map(|i| usize::from_str_radix(i, 10));
 
         // First fragment must be '0'
@@ -310,6 +316,28 @@ where U:From<u64>, U:Into<u64>, U:Copy {
                 else {
                     return None;
                 }
+            }
+            else {
+                return None;
+            }
+        }
+        return Some(cursor);
+    }
+
+    pub fn id_by_path(&self, path: &[usize]) -> Option<U> {
+        let mut iter = path.iter();
+
+        // First fragment must be '0'
+        match iter.next(){
+            Some(i) => if *i!=0 {return None},
+            _ => return None
+        }
+
+        let mut cursor: U = self.root?;
+
+        while let Some(i) = iter.next() {
+            if let Some(c) = self._nth_child_id(cursor, *i) {
+                cursor = c;
             }
             else {
                 return None;
@@ -355,25 +383,18 @@ where U:From<u64>, U:Into<u64>, U:Copy {
     -> TreeDepthIterator<T,U>
     {
         TreeDepthIterator::new(&self)
-    }    
+    }
 
     // path is a string of form "0:12:4:1..."
-    pub fn by_path(&self, path: &str) -> Option<&T> {
-        let id = self.id_by_path(path)?;
+    pub fn by_path_str(&self, path: &str) -> Option<&T> {
+        let id = self.id_by_path_str(path)?;
         return self.get(id);
     }
 
-    pub fn by_path_mut(&mut self, path: &str) -> Option<&mut T> {
-        let id = self.id_by_path(path)?;
+    pub fn by_path_mut_str(&mut self, path: &str) -> Option<&mut T> {
+        let id = self.id_by_path_str(path)?;
         return self.get_mut(id);
     }
-
-    // Store a new node and return its id. The node will be floating
-    // fn _new_id(&mut self, t:T, uid: U) -> U {
-    //     let node = TreeNode::new(t);
-    //     self.flat.insert(uid,node);
-    //     return uid;      
-    // }
 
     fn _get_node(&self, id: U) -> Option<&TreeNode<T,U>> {
         self.flat.get(id)
@@ -463,8 +484,12 @@ where U:From<u64>, U:Into<u64>, U:Copy {
     pub fn new(tree :&'a TreeContainer<T, U>) -> Self {
         TreeDepthIterator {
             tree,
-            cur_id: None
+            walk: TreeDepthIdWalk::new(),
         }
+    }
+
+    pub fn path(&self) -> &[usize] {
+        &self.walk.path
     }
 }
 
@@ -473,36 +498,7 @@ where U:From<u64>, U:Into<u64>, U:Copy {
     type Item = (U, &'a T);
 
     fn next(&mut self) -> Option<(U, &'a T)> {
-        // First call of iterator, return root if any
-        if self.cur_id.is_none(){
-            self.cur_id = self.tree.root;
-        }
-        else if let Some(id) = self.tree._first_child_id(self.cur_id?){
-            //return first child
-            self.cur_id = Some(id);    
-        }
-        else if let Some(id) = self.tree._sibling_id(self.cur_id?){
-            //return next sibling
-            self.cur_id = Some(id); 
-        }
-        else{
-            // parent sibling
-            let mut cur = self.cur_id?;
-
-            loop {
-                if let Some(parent) = self.tree._parent_id(cur) {
-                    if let Some(sibling) = self.tree._sibling_id(parent) {
-                        self.cur_id = Some(sibling);
-                        break;
-                    }
-                    cur=parent;
-                } else {
-                    self.cur_id = None;
-                    break;
-                }
-            }
-        }
-        return Some((self.cur_id?, self.tree.get(self.cur_id?)?));
+        return Some((self.walk.next(self.tree)?, self.tree.get(self.walk.cur_id?)?));
     }
 }
 
@@ -529,6 +525,65 @@ where U:From<u64>, U:Into<u64>, U:Copy {
         }
     }
 }
+
+
+
+impl <U> TreeDepthIdWalk<U>
+where U:From<u64>, U:Into<u64>, U:Copy {
+    pub fn new() -> Self {
+        TreeDepthIdWalk {
+            cur_id: None,
+            path: Vec::new()
+        }
+    }
+
+    pub fn path(&self) -> &[usize] {
+        &self.path
+    }
+
+    pub fn next<T> (&mut self, tree: & TreeContainer<T, U>) -> Option<U> {
+        // First call of iterator, return root if any
+        if self.cur_id.is_none(){
+            self.cur_id = tree.root;
+            self.path.push(0);
+        }
+        else if let Some(id) = tree._first_child_id(self.cur_id?){
+            //return first child
+            self.cur_id = Some(id);
+            self.path.push(0);
+        }
+        else if let Some(id) = tree._sibling_id(self.cur_id?){
+            //return next sibling
+            self.cur_id = Some(id);
+            let idx = self.path.pop().unwrap();
+            self.path.push(idx+1);
+        }
+        else{
+            // parent sibling
+            let mut cur = self.cur_id?;
+
+            loop {
+                if let Some(parent) = tree._parent_id(cur) {
+                    self.path.pop().unwrap();
+                    if let Some(sibling) = tree._sibling_id(parent) {
+                        self.cur_id = Some(sibling);
+                        let idx = self.path.pop().unwrap();
+                        self.path.push(idx+1);
+                        break;
+                    }
+                    cur=parent;
+                } else {
+                    self.cur_id = None;
+                    self.path.clear();
+                    break;
+                }
+            }
+        }
+        return Some(self.cur_id?);
+    }
+}
+
+
 
 #[cfg(test)]
 mod tests {
@@ -688,14 +743,14 @@ mod tests {
         let id2 = cont.add_child(root_id, 1, 267869890, gen.get()).unwrap();
         let id3 = cont.add_child(id2, 0, 3454, gen.get()).unwrap();
 
-        assert_eq!(cont.id_by_path("0"), Some(root_id));
-        assert_eq!(cont.id_by_path("0:0"), Some(id1));
-        assert_eq!(cont.id_by_path("0:1"), Some(id2));
-        assert_eq!(cont.id_by_path("0:1:0"), Some(id3));
+        assert_eq!(cont.id_by_path_str("0"), Some(root_id));
+        assert_eq!(cont.id_by_path_str("0:0"), Some(id1));
+        assert_eq!(cont.id_by_path_str("0:1"), Some(id2));
+        assert_eq!(cont.id_by_path_str("0:1:0"), Some(id3));
 
-        assert_eq!(cont.id_by_path("1"), None);
-        assert_eq!(cont.id_by_path("0:1:1"), None);
-        assert_eq!(cont.id_by_path("0:2"), None);
+        assert_eq!(cont.id_by_path_str("1"), None);
+        assert_eq!(cont.id_by_path_str("0:1:1"), None);
+        assert_eq!(cont.id_by_path_str("0:2"), None);
     }
 
 
@@ -813,16 +868,27 @@ mod tests {
         let mut iterator =  tree.depth_iter();
 
         assert_eq!(Some((root_id,&1)), iterator.next());
+        assert_eq!([0], iterator.path());
         assert_eq!(Some((id1,    &2)), iterator.next());
+        assert_eq!([0, 0], iterator.path());
         assert_eq!(Some((id11,   &3)), iterator.next());
+        assert_eq!([0, 0, 0], iterator.path());
         assert_eq!(Some((id12,   &4)), iterator.next());
+        assert_eq!([0, 0, 1], iterator.path());
         assert_eq!(Some((id2,    &5)), iterator.next());
+        assert_eq!([0, 1], iterator.path());
         assert_eq!(Some((id21,   &6)), iterator.next());
+        assert_eq!([0, 1, 0], iterator.path());
         assert_eq!(Some((id211,  &7)), iterator.next());
+        assert_eq!([0, 1, 0, 0], iterator.path());
         assert_eq!(Some((id22,   &8)), iterator.next());
+        assert_eq!([0, 1, 1], iterator.path());
         assert_eq!(Some((id221,  &9)), iterator.next());
+        assert_eq!([0, 1, 1, 0], iterator.path());
         assert_eq!(Some((id3,   &10)), iterator.next());
+        assert_eq!([0, 2], iterator.path());
         assert_eq!(Some((id4,   &11)), iterator.next());
+        assert_eq!([0, 3], iterator.path());
         assert_eq!(None, iterator.next());
     }
 
