@@ -346,6 +346,26 @@ where U:From<u64>, U:Into<u64>, U:Copy {
         return Some(cursor);
     }
 
+
+
+    pub fn get_path(&self, id:U) -> Vec<usize> {
+        let mut path:Vec<usize>=Vec::new();
+
+        let mut cur_id = id;
+        while let Some(parent_id) = self._parent_id(cur_id) {
+            let mut cnt:usize = 0;
+            while let Some(left_id) = self._left_sibling_id(cur_id) {
+                cnt+=1;
+                cur_id = left_id;
+            }
+            path.insert(0, cnt);
+            cur_id = parent_id;
+        }
+        path.insert(0, 0);
+        return path
+    } 
+
+
     pub fn for_each_child<F>(&self, parent:U, mut f: F)
     where
         F: FnMut(U, &T),
@@ -445,6 +465,10 @@ where U:From<u64>, U:Into<u64>, U:Copy {
 
     fn _sibling_id(&self, id: U) -> Option<U> {
         self._get_node(id)?.sibling_right
+    }
+
+    fn _left_sibling_id(&self, id: U) -> Option<U> {
+        self._get_node(id)?.sibling_left
     }
 
     fn _parent_id(&self, id: U) -> Option<U> {
@@ -942,6 +966,35 @@ mod tests {
         let root_id = tree.add_root(42, gen.get()).unwrap();
         tree.push_child(root_id, 1, gen.get()).unwrap();
         assert_eq!(tree.get(res_id), None);
+    }
+
+    #[test]
+    fn get_path() {
+        let mut gen = GuidManager::new();
+        let mut tree: TreeContainer<i64, Guid> = TreeContainer::new();
+        let root_id = tree.add_root(1, gen.get()).unwrap();
+        let id1 = tree.push_child(root_id, 2, gen.get()).unwrap();
+        let id11 = tree.push_child(id1,    3, gen.get()).unwrap();
+        let id12 = tree.push_child(id1,    4, gen.get()).unwrap();
+        let id2 = tree.push_child(root_id, 5, gen.get()).unwrap();
+        let id21 = tree.push_child(id2,    6, gen.get()).unwrap();
+        let id211 = tree.push_child(id21,  7, gen.get()).unwrap();
+        let id22 = tree.push_child(id2,    8, gen.get()).unwrap();
+        let id221 = tree.push_child(id22,  9, gen.get()).unwrap();
+        let id3 = tree.push_child(root_id, 10, gen.get()).unwrap();
+        let id4 = tree.push_child(root_id, 11, gen.get()).unwrap();
+
+        assert_eq!(tree.get_path(root_id), [0]);
+        assert_eq!(tree.get_path(id1), [0, 0]);
+        assert_eq!(tree.get_path(id11), [0, 0, 0]);
+        assert_eq!(tree.get_path(id12), [0, 0, 1]);
+        assert_eq!(tree.get_path(id2), [0, 1]);
+        assert_eq!(tree.get_path(id21), [0, 1, 0]);
+        assert_eq!(tree.get_path(id211), [0, 1, 0, 0]);
+        assert_eq!(tree.get_path(id22), [0, 1, 1]);
+        assert_eq!(tree.get_path(id221), [0, 1, 1, 0]);
+        assert_eq!(tree.get_path(id3), [0, 2]);
+        assert_eq!(tree.get_path(id4), [0, 3]);
     }
 
 }
