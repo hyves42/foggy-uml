@@ -32,7 +32,7 @@ pub struct Digraph<T,W,U> {
 
 
 impl<T,W,U> Digraph<T,W,U>
-where U:From<u64>, U:Into<u64>, U:Copy, U: std::fmt::Debug, W: std::fmt::Debug {
+where U:From<u64>, U:Into<u64>, U:Eq, U:Copy, U: std::fmt::Debug, W: std::fmt::Debug {
     pub fn new() -> Self {
         Digraph {
             root: None,
@@ -80,6 +80,18 @@ where U:From<u64>, U:Into<u64>, U:Copy, U: std::fmt::Debug, W: std::fmt::Debug {
                 }
             }
         }
+    }
+
+    fn _find_first_edge(&self, id:U) -> Option<usize>{
+        let index = self._find_first_edge_inf(id);
+        if index == self.edges.len(){
+            return None;
+        }
+        let edge = &self.edges[index];
+        if edge.orig != id {
+            return None;
+        }
+        Some(index)
     }
 
     pub fn add_edge(&mut self, orig:U, dest:U, weight:W){
@@ -133,16 +145,15 @@ where U:From<u64>, U:Into<u64>, U:Copy {
     }
 
     pub fn next<T,W> (&mut self, graph: &Digraph<T,W,U>) -> Option<(W,U)>
-    where W:Copy, U:std::fmt::Debug,  W:std::fmt::Debug {
+    where W:Copy, U:std::fmt::Debug, U:Eq,  W:std::fmt::Debug {
         // if I'm already iterating through edges
         if let Some(id) = self.index{
             if id + 1 >= graph.edges.len(){
                 //Finito
                 return None;
             }
-            let node:u64 = self.node.into();
             let edge = &graph.edges[id+1];
-            if edge.orig.into() != node {
+            if edge.orig != self.node {
                 return None;
             }
             self.index = Some(id+1);
@@ -150,19 +161,14 @@ where U:From<u64>, U:Into<u64>, U:Copy {
         }
         // First call of iterator, find first edge
         else{
-            // This function returns the first edge with an origin >= id
-            // we have to check for the equality before accepting the result
-            let index = graph._find_first_edge_inf(self.node);
-            if index == graph.edges.len(){
-                return None;
+            match graph._find_first_edge(self.node){
+                None=> return None,
+                Some(index) =>{
+                    self.index = Some(index);
+                    let edge = &graph.edges[index];
+                    return Some((edge.weight, edge.dest));
+                }
             }
-            let node:u64 = self.node.into();
-            let edge = &graph.edges[index];
-            if edge.orig.into() != node {
-                return None;
-            }
-            self.index = Some(index);
-            return Some((edge.weight, edge.dest));
         }
     }
 }
@@ -199,11 +205,13 @@ where U:From<u64>, U:Into<u64>, U:Copy {
 
     // return a tuple (weight, origin, destination)
     pub fn next<T,W> (&mut self, graph: &Digraph<T,W,U>) -> Option<(W,U,U)>
-    where W:Copy, U: std::fmt::Debug, W: std::fmt::Debug {
+    where W:Copy, U: std::fmt::Debug, U:Eq, W: std::fmt::Debug {
         loop{
+            // explore edges of the current node
             let next = self.current_walk.next(graph);
             match next{
                 Some((w,dest)) =>{
+                    // visit this edge
                     let count:u32;
                     // Count the number of times we visited the destination
                     if let Some(c) = self.visit_count.get_mut(dest){
@@ -214,16 +222,20 @@ where U:From<u64>, U:Into<u64>, U:Copy {
                         self.visit_count.insert(dest, 1).unwrap();
                         count =1;
                     }
-                    // If we visited the destination through all its incoming edge
-                    // Put it in the list of nodes to visit
+                    // If we visited the destination through all its incoming edges,
+                    // put it in the list of nodes to visit
                     if graph.nodes.get(dest).unwrap().nb_in == count{
                         self.next_nodes.push_back(dest);
                     }
                     return Some((w, self.current_node, dest));
                 },
                 None =>{
+                    // No more edge to visit on current node
+                    // peek a new node in next list
                     match self.next_nodes.pop_front() {
+                        // No mode nodes, walk is over
                         None => return None,
+                        // Iterate Again with this node
                         Some(id) => {
                             self.current_walk = DigraphNodeOutWalk::new(id);
                             self.current_node = id;
@@ -266,7 +278,7 @@ pub struct SolverNodeIterator<'a, U> {
 }
 
 impl<U> SolverGraph<U>
-where U:From<u64>, U:Into<u64>, U:Copy, U: std::fmt::Debug {
+where U:From<u64>, U:Into<u64>, U:Copy, U:Eq, U: std::fmt::Debug {
     pub fn new() -> Self {
         SolverGraph{
             graph: Digraph::new()

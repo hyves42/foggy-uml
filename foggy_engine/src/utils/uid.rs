@@ -5,7 +5,7 @@ use derive_more::{From, Into};
 
 // A typical type definition for generational UIDs
 // It is advised to define your own guid types when using generational data store to take advantage of static type checking
-#[derive(Debug, PartialEq, From, Into, Copy, Clone)]
+#[derive(Hash, Eq, Debug, PartialEq, From, Into, Copy, Clone)]
 pub struct Guid(u64);
 
 // Handles a mostly-contiguous list of generational IDs
