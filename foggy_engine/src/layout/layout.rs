@@ -307,16 +307,16 @@ impl Layout {
         //First add all nodes to solver graph
         for (id, b) in self.tree.depth_iter(){
             // Add top_left and bottom_right positions to the solver
-            solver_x.add_node(b.top_left);
-            solver_x.add_node(b.bottom_right);
-            solver_y.add_node(b.top_left);
-            solver_y.add_node(b.bottom_right);
+            solver_x.add_node(b.top_left).unwrap();
+            solver_x.add_node(b.bottom_right).unwrap();
+            solver_y.add_node(b.top_left).unwrap();
+            solver_y.add_node(b.bottom_right).unwrap();
 
             solver_x.add_edge(b.top_left, b.bottom_right, 
-                b.constraint.pref_w.unwrap_or(0));
+                b.constraint.pref_w.unwrap_or(0)).unwrap();
             
             solver_y.add_edge(b.top_left, b.bottom_right, 
-                b.constraint.pref_h.unwrap_or(0));
+                b.constraint.pref_h.unwrap_or(0)).unwrap();
 
             // For tables, add lane constraint nodes to the solver
             if let LayoutBoxType::TableRoot(ctx) = b.t{
@@ -326,9 +326,9 @@ impl Layout {
                     let dim_id = self.dimension_id.get();
                     points.push(dim_id);
                     match b.direction {
-                        Direction::Vertical => solver_x.add_node(dim_id),
-                        Direction::Horizontal => solver_y.add_node(dim_id)
-                    }
+                        Direction::Vertical => solver_x.add_node(dim_id).unwrap(),
+                        Direction::Horizontal => solver_y.add_node(dim_id).unwrap()
+                    };
                 }
                 hash.insert(id, points);
             }
@@ -355,8 +355,8 @@ impl Layout {
 
             match direction {
                 Direction::Vertical =>{
-                    solver_x.add_edge(p_topleft, b.top_left, 0);
-                    solver_x.add_edge(b.bottom_right, p_bottomright, 0);
+                    solver_x.add_edge(p_topleft, b.top_left, 0).unwrap();
+                    solver_x.add_edge(b.bottom_right, p_bottomright, 0).unwrap();
 
                     // Table layout constraints are specific
                     if let LayoutBoxType::TableLane(ctx) = b.t {
@@ -366,45 +366,45 @@ impl Layout {
                         if *lane_idx > 0 {
                             //left constraint to table lane
                             let left_id =  limits[*lane_idx-1];
-                            solver_y.add_edge(left_id, b.top_left, 0);
+                            solver_y.add_edge(left_id, b.top_left, 0).unwrap();
                         }
                         else {
                             //left constraint to parent
-                            solver_y.add_edge(p_topleft, b.top_left, 0);
+                            solver_y.add_edge(p_topleft, b.top_left, 0).unwrap();
                         }
                         if *lane_idx < limits.len() {
                             //right constraint to table line
                             let right_id =  limits[*lane_idx];
-                            solver_y.add_edge(b.bottom_right, right_id, 0);
+                            solver_y.add_edge(b.bottom_right, right_id, 0).unwrap();
                         }                            
                         else {
                             //last  lane, add right constraint to parent
-                            solver_y.add_edge(b.bottom_right, p_bottomright, 0);
+                            solver_y.add_edge(b.bottom_right, p_bottomright, 0).unwrap();
                         }                       
                     }
                     else { // generic box constraints
                         if let Some((_, left)) = self.tree.left_sibling(id){
                             // Add  constraint to previous sibling
-                            solver_y.add_edge(left.bottom_right, b.top_left, 0);
+                            solver_y.add_edge(left.bottom_right, b.top_left, 0).unwrap();
                         }
                         else{
                             // add constraint to parent
-                            solver_y.add_edge(p_topleft, b.top_left, 0);
+                            solver_y.add_edge(p_topleft, b.top_left, 0).unwrap();
                         }
 
                         if let Some((_, right)) = self.tree.right_sibling(id){
                             // Add  constraint to next sibling
-                            solver_y.add_edge(b.bottom_right, right.top_left, 0);
+                            solver_y.add_edge(b.bottom_right, right.top_left, 0).unwrap();
                         }
                         else{
                             // add constraint to parent
-                            solver_y.add_edge(b.bottom_right, p_bottomright, 0);
+                            solver_y.add_edge(b.bottom_right, p_bottomright, 0).unwrap();
                         }  
                     }              
                 },
                 Direction::Horizontal =>{
-                    solver_y.add_edge(p_topleft, b.top_left, 0);
-                    solver_y.add_edge(b.bottom_right, p_bottomright, 0);
+                    solver_y.add_edge(p_topleft, b.top_left, 0).unwrap();
+                    solver_y.add_edge(b.bottom_right, p_bottomright, 0).unwrap();
 
                     // Table layout constraints are specific
                     if let LayoutBoxType::TableLane(ctx) = b.t {
@@ -414,39 +414,39 @@ impl Layout {
                         if *lane_idx > 0 {
                             //left constraint to table lane
                             let left_id =  limits[*lane_idx-1];
-                            solver_x.add_edge(left_id, b.top_left, 0);
+                            solver_x.add_edge(left_id, b.top_left, 0).unwrap();
                         }
                         else {
                             //left constraint to parent
-                            solver_x.add_edge(p_topleft, b.top_left, 0);
+                            solver_x.add_edge(p_topleft, b.top_left, 0).unwrap();
                         }
                         if *lane_idx < limits.len() {
                             //right constraint to table line
                             let right_id =  limits[*lane_idx];
-                            solver_x.add_edge(b.bottom_right, right_id, 0);
+                            solver_x.add_edge(b.bottom_right, right_id, 0).unwrap();
                         }                            
                         else {
                             //last  lane, add right constraint to parent
-                            solver_x.add_edge(b.bottom_right, p_bottomright, 0);
+                            solver_x.add_edge(b.bottom_right, p_bottomright, 0).unwrap();
                         }
                     }
                     else{ // generic box constraints
                         if let Some((_, left)) = self.tree.left_sibling(id){
                             // Add  constraint to previous sibling
-                            solver_x.add_edge(left.bottom_right, b.top_left, 0);
+                            solver_x.add_edge(left.bottom_right, b.top_left, 0).unwrap();
                         }
                         else{
                             // add constraint to parent
-                            solver_x.add_edge(p_topleft, b.top_left, 0);
+                            solver_x.add_edge(p_topleft, b.top_left, 0).unwrap();
                         }
 
                         if let Some((_, right)) = self.tree.right_sibling(id){
                             // Add  constraint to next sibling
-                            solver_x.add_edge(b.bottom_right, right.top_left, 0);
+                            solver_x.add_edge(b.bottom_right, right.top_left, 0).unwrap();
                         }
                         else{
                             // add constraint to parent
-                            solver_x.add_edge(b.bottom_right, p_bottomright, 0);
+                            solver_x.add_edge(b.bottom_right, p_bottomright, 0).unwrap();
                         }
                     }
                 }
@@ -465,7 +465,7 @@ impl Layout {
 
         for (id, n) in solver_x.nodes_iter(){
             if let Some(solution) = n.min_val{
-                self.box_x.insert(id, solution);
+                self.box_x.insert(id, solution).unwrap();
             }
             else{ 
                 return Err("Some x dimensions were not solved");
@@ -473,7 +473,7 @@ impl Layout {
         }
         for (id, n) in solver_y.nodes_iter(){
             if let Some(solution) = n.min_val{
-                self.box_y.insert(id, solution);
+                self.box_y.insert(id, solution).unwrap();
             }
             else{ 
                 return Err("Some y dimensions were not solved");
@@ -614,7 +614,7 @@ mod tests {
         layout.add_line(layout.get_root());
 
         layout.add_lane(layout.get_root());
-        let line4_ids = layout.add_line(layout.get_root());;
+        let line4_ids = layout.add_line(layout.get_root());
         let root = layout.tree.get(layout.get_root()).unwrap();
         assert_eq!(root.t, LayoutBoxType::TableRoot(TableRootCtx{lanes:4}));
         assert_eq!(layout.tree.id_by_path_str("0:3:0"),Some(line4_ids[0]));

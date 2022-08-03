@@ -109,6 +109,19 @@ where U:From<u64>, U:Into<u64>, U:Copy {
         return Ok(id);
     }
 
+    // Same as insert but can overwrite existing data
+    pub fn set(&mut self, id: U, t: T)->Result<U,&str> {
+        let idx = GuidManager::guid_id(id) as usize;
+
+        // Grow vec to the required size
+        while idx >= self.items.len() {
+            self.items.push(None);
+        }
+        self.items[idx] = Some((GuidManager::guid_gen(id), t));
+        return Ok(id);
+    }
+
+
     pub fn get(&self, id: U) -> Option<&T> {
         if let Some(Some((gen, t))) = self.items.get(GuidManager::guid_id(id) as usize) {
             if *gen == GuidManager::guid_gen(id) {
