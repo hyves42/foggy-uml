@@ -1,16 +1,46 @@
 pub mod asciirender;
 
-
 pub enum TextSize {
     Normal,
 }
 
 pub enum RenderableItem {
-    Rectangle { x: usize, y: usize, w: usize, h: usize },
-    RoundRectangle { x: usize, y: usize, w: usize, h: usize },
-    Text { text: String, x: usize, y: usize },
-    Line { x1:usize, y1:usize, x2:usize, y2:usize },
-    Arrow { x1:usize, y1:usize, x2:usize, y2:usize, end1:bool, end2:bool },
+    Rectangle {
+        x: usize,
+        y: usize,
+        w: usize,
+        h: usize,
+    },
+    RoundRectangle {
+        x: usize,
+        y: usize,
+        w: usize,
+        h: usize,
+    },
+    Text {
+        text: String,
+        x: usize,
+        y: usize,
+    },
+    Line {
+        x1: usize,
+        y1: usize,
+        x2: usize,
+        y2: usize,
+    },
+    Arrow {
+        x1: usize,
+        y1: usize,
+        x2: usize,
+        y2: usize,
+        end1: bool,
+        end2: bool,
+    },
+    CurvedArrow {
+        points: Vec<(usize, usize)>,
+        end1: bool,
+        end2: bool,
+    },
 }
 
 pub trait Renderer {
@@ -82,10 +112,9 @@ mod tests {
             0
         }
 
-        fn render(&self) -> String{
+        fn render(&self) -> String {
             String::new()
         }
-
     }
 
     pub struct DummyRender2 {}
@@ -106,7 +135,7 @@ mod tests {
             0
         }
 
-        fn render(&self) -> String{
+        fn render(&self) -> String {
             String::new()
         }
     }
