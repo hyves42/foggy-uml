@@ -1,37 +1,40 @@
 // A graph structure allocated in the same contiguous memory region
 // allocated memory can only grow, there is no freeing mechanism
 use crate::utils::uid::*;
+use core::fmt::Debug;
 use std::collections::VecDeque;
-
-
 
 #[derive(Debug, PartialEq, Default)]
 struct DigraphNode<T> {
     pub data: T,
-    pub nb_in:u32,
-    pub nb_out:u32
+    pub nb_in: u32,
+    pub nb_out: u32,
 }
 
 #[derive(Debug, PartialEq, Default, Copy, Clone)]
-struct DigraphEdge<W,U> {
+struct DigraphEdge<W, U> {
     pub orig: U,
     pub dest: U,
-    pub weight: W
+    pub weight: W,
 }
 
-
 #[derive(Debug, PartialEq)]
-pub struct Digraph<T,W,U> {
+pub struct Digraph<T, W, U> {
     // Directed edges ordered by growing origin
-    edges: Vec<DigraphEdge<W,U>>,
-    backward_edges:Vec<DigraphEdge<W,U>>,
+    edges: Vec<DigraphEdge<W, U>>,
+    backward_edges: Vec<DigraphEdge<W, U>>,
     nodes: UidStore<DigraphNode<T>, U>,
 }
 
-
-
-impl<T,W,U> Digraph<T,W,U>
-where U:From<u64>, U:Into<u64>, U:Eq, U:Copy, U: std::fmt::Debug, W: std::fmt::Debug {
+impl<T, W, U> Digraph<T, W, U>
+where
+    U: From<u64>,
+    U: Into<u64>,
+    U: Eq,
+    U: Copy,
+    U: std::fmt::Debug,
+    W: std::fmt::Debug,
+{
     pub fn new() -> Self {
         Digraph {
             edges: Vec::new(),
@@ -40,38 +43,37 @@ where U:From<u64>, U:Into<u64>, U:Eq, U:Copy, U: std::fmt::Debug, W: std::fmt::D
         }
     }
 
-    fn _find_first_edge_inf(&self, id:U) -> usize{
+    fn _find_first_edge_inf(&self, id: U) -> usize {
         let mut i = self.edges.len() / 2;
         let mut step = i;
-        let orig:u64 = id.into();
+        let orig: u64 = id.into();
         // Find the first occurence of id in edges list by dichotomy
-        loop{
-            step = (step/2).max(1);
+        loop {
+            step = (step / 2).max(1);
 
-            if i == self.edges.len(){
+            if i == self.edges.len() {
                 return i;
             }
-            if let Some(e) = self.edges.get(i){
+            if let Some(e) = self.edges.get(i) {
                 //println!(" i = {:?}, id = {:?}, id[i] = {:?}, step={:?}", i, orig, e.orig, step);
-                if orig > e.orig.into(){
-                    if i==0{
+                if orig > e.orig.into() {
+                    if i == 0 {
                         // Special case for array of length 1
                         return 1;
                     }
                     i = i + step;
-                }
-                else{ // id <= e.orig
-                    if i==0{
+                } else {
+                    // id <= e.orig
+                    if i == 0 {
                         return 0;
                     }
                     // make sure that id > e-1.orig
-                    if let Some(e2) = self.edges.get(i-1){
+                    if let Some(e2) = self.edges.get(i - 1) {
                         //println!(" i = {:?}, id[i-1] = {:?}, step={:?}", i, e2.orig, step);
-                        if orig > e2.orig.into(){
+                        if orig > e2.orig.into() {
                             // Found it
                             return i;
-                        }
-                        else{
+                        } else {
                             i = i - step;
                         }
                     }
@@ -80,9 +82,9 @@ where U:From<u64>, U:Into<u64>, U:Eq, U:Copy, U: std::fmt::Debug, W: std::fmt::D
         }
     }
 
-    fn _find_first_edge(&self, id:U) -> Option<usize>{
+    fn _find_first_edge(&self, id: U) -> Option<usize> {
         let index = self._find_first_edge_inf(id);
-        if index == self.edges.len(){
+        if index == self.edges.len() {
             return None;
         }
         let edge = &self.edges[index];
@@ -92,16 +94,19 @@ where U:From<u64>, U:Into<u64>, U:Eq, U:Copy, U: std::fmt::Debug, W: std::fmt::D
         Some(index)
     }
 
-    pub fn add_edge(&mut self, orig:U, dest:U, weight:W) ->Result<(),()>{
-        if self.nodes.get(orig).is_none() || self.nodes.get(dest).is_none(){
-            return Err(()); 
+    pub fn add_edge(&mut self, orig: U, dest: U, weight: W) -> Result<(), String> {
+        if self.nodes.get(orig).is_none() {
+            return Err(format!("origin {:?} doesn't exist.", orig));
+        }
+        if self.nodes.get(dest).is_none() {
+            return Err(format!("destination {:?} doesn't exist.", dest));
         }
         //println!("Edges before : {:?} (self={:p})", self.edges, &self);
         //println!(" Try to insert orig {:?} to {:?}", orig, dest);
         // add edge in list, sorted by origin
         let idx = self._find_first_edge_inf(orig);
 
-        self.edges.insert(idx, DigraphEdge{orig, dest, weight});
+        self.edges.insert(idx, DigraphEdge { orig, dest, weight });
         //println!(" Insert at idx {:?}", idx);
         //println!(" Edges now : {:?}", self.edges);
 
@@ -109,101 +114,138 @@ where U:From<u64>, U:Into<u64>, U:Eq, U:Copy, U: std::fmt::Debug, W: std::fmt::D
         orig_node.nb_out += 1;
         let dest_node = self.nodes.get_mut(dest).unwrap();
         dest_node.nb_in += 1;
-        
+
         Ok(())
     }
 
-    pub fn add_node(&mut self, id:U, data:T)->Result<U,&str>{
-        return self.nodes.insert(id, 
+    pub fn add_node(&mut self, id: U, data: T) -> Result<U, String> {
+        return self.nodes.insert(
+            id,
             DigraphNode {
                 data,
-                nb_in:0,
-                nb_out:0
-            });
+                nb_in: 0,
+                nb_out: 0,
+            },
+        );
     }
 
-    pub fn walk_from(&self, id:U) -> DigraphNodeOutWalk<U>{
+    pub fn get_edge(&self, orig: U, dest: U) -> Option<&W> {
+        let mut i = self._find_first_edge(orig)?;
+
+        while let Some(edge) = self.edges.get(i) {
+            if edge.dest == dest {
+                return Some(&edge.weight);
+            }
+            i += 1;
+        }
+        return None;
+    }
+
+    pub fn get_node(&self, id: U) -> Option<&T> {
+        Some(&self.nodes.get(id)?.data)
+    }
+
+    pub fn walk_from(&self, id: U) -> DigraphNodeOutWalk<U> {
         return DigraphNodeOutWalk::new(id);
     }
 }
 
-
-
 // A graph is simply a digraph with double the amout of edges
 #[derive(Debug, PartialEq)]
-pub struct Graph<T,W,U> {
-    digraph: Digraph<T,W,U>,
+pub struct Graph<T, W, U> {
+    digraph: Digraph<T, W, U>,
 }
 
-
-
-impl<T,W,U> Graph<T,W,U>
-where U:From<u64>, U:Into<u64>, U:Eq, U:Copy, U: std::fmt::Debug, W: std::fmt::Debug, W:Copy {
+impl<T, W, U> Graph<T, W, U>
+where
+    U: From<u64>,
+    U: Into<u64>,
+    U: Eq,
+    U: Copy,
+    U: std::fmt::Debug,
+    W: std::fmt::Debug,
+    W: Copy,
+{
     pub fn new() -> Self {
         Graph {
             digraph: Digraph::new(),
         }
     }
 
-    pub fn add_edge(&mut self, orig:U, dest:U, weight:W) -> Result<(),()>{
+    pub fn add_edge(&mut self, orig: U, dest: U, weight: W) -> Result<(), String> {
         self.digraph.add_edge(orig, dest, weight)?;
         self.digraph.add_edge(dest, orig, weight)?;
         Ok(())
     }
 
-    pub fn add_node(&mut self, id:U, data:T)->Result<U,&str>{
+    pub fn add_node(&mut self, id: U, data: T) -> Result<U, String> {
         return self.digraph.add_node(id, data);
     }
 
-    pub fn walk_from(&self, id:U) -> DigraphNodeOutWalk<U>{
+    pub fn get_edge(&self, orig: U, dest: U) -> Option<&W> {
+        let edge1 = self.digraph.get_edge(orig, dest)?;
+        let _edge2 = self.digraph.get_edge(dest, orig)?;
+
+        return Some(edge1);
+    }
+
+    pub fn get_node(&self, id: U) -> Option<&T> {
+        self.digraph.get_node(id)
+    }
+
+    pub fn walk_from(&self, id: U) -> DigraphNodeOutWalk<U> {
         return self.digraph.walk_from(id);
     }
 }
 
-
-
 /////////////////////////////////
 // Walkers
 
-
-
-
 // Walk through adjacent output nodes
 #[derive(Debug, PartialEq)]
-pub struct DigraphNodeOutWalk<U>{
+pub struct DigraphNodeOutWalk<U> {
     node: U,
     index: Option<usize>,
 }
 
 impl<U> DigraphNodeOutWalk<U>
-where U:From<u64>, U:Into<u64>, U:Copy {
-    pub fn new(origin:U) -> Self {
+where
+    U: From<u64>,
+    U: Into<u64>,
+    U: Copy,
+{
+    pub fn new(origin: U) -> Self {
         DigraphNodeOutWalk {
-            node:origin,
+            node: origin,
             index: None,
         }
     }
 
-    pub fn next<T,W> (&mut self, graph: &Digraph<T,W,U>) -> Option<(W,U)>
-    where W:Copy, U:std::fmt::Debug, U:Eq,  W:std::fmt::Debug {
+    pub fn next<T, W>(&mut self, graph: &Digraph<T, W, U>) -> Option<(W, U)>
+    where
+        W: Copy,
+        U: std::fmt::Debug,
+        U: Eq,
+        W: std::fmt::Debug,
+    {
         // if I'm already iterating through edges
-        if let Some(id) = self.index{
-            if id + 1 >= graph.edges.len(){
+        if let Some(id) = self.index {
+            if id + 1 >= graph.edges.len() {
                 //Finito
                 return None;
             }
-            let edge = &graph.edges[id+1];
+            let edge = &graph.edges[id + 1];
             if edge.orig != self.node {
                 return None;
             }
-            self.index = Some(id+1);
+            self.index = Some(id + 1);
             return Some((edge.weight, edge.dest));
         }
         // First call of iterator, find first edge
-        else{
-            match graph._find_first_edge(self.node){
-                None=> return None,
-                Some(index) =>{
+        else {
+            match graph._find_first_edge(self.node) {
+                None => return None,
+                Some(index) => {
                     self.index = Some(index);
                     let edge = &graph.edges[index];
                     return Some((edge.weight, edge.dest));
@@ -216,7 +258,7 @@ where U:From<u64>, U:Into<u64>, U:Copy {
 // Breadth-first buddy walk
 // (I'm sure there is a name for that in the litterature)
 // Explore the graph with a breadth-first method.
-// For nodes with several input edges, don't explore output edges  
+// For nodes with several input edges, don't explore output edges
 // until all input edges have been explored.
 // In other words, wait for your buddies at the intersection before continuing to walk
 
@@ -225,7 +267,7 @@ where U:From<u64>, U:Into<u64>, U:Copy {
 // - there is no cyclic dependency (ie it doesn't work with a Graph)
 
 #[derive(Debug, PartialEq)]
-pub struct DigraphBuddyWalk<U>{
+pub struct DigraphBuddyWalk<U> {
     current_node: U,
     current_walk: DigraphNodeOutWalk<U>,
     visit_count: UidStore<u32, U>,
@@ -233,8 +275,13 @@ pub struct DigraphBuddyWalk<U>{
 }
 
 impl<U> DigraphBuddyWalk<U>
-where U:From<u64>, U:Into<u64>, U:Copy {
-    pub fn new(from:U) -> Self {
+where
+    U: From<u64>,
+    U: Into<u64>,
+    U: Copy,
+    U: Debug,
+{
+    pub fn new(from: U) -> Self {
         DigraphBuddyWalk {
             current_node: from,
             current_walk: DigraphNodeOutWalk::new(from),
@@ -244,32 +291,36 @@ where U:From<u64>, U:Into<u64>, U:Copy {
     }
 
     // return a tuple (weight, origin, destination)
-    pub fn next<T,W> (&mut self, graph: &Digraph<T,W,U>) -> Option<(W,U,U)>
-    where W:Copy, U: std::fmt::Debug, U:Eq, W: std::fmt::Debug {
-        loop{
+    pub fn next<T, W>(&mut self, graph: &Digraph<T, W, U>) -> Option<(W, U, U)>
+    where
+        W: Copy,
+        U: std::fmt::Debug,
+        U: Eq,
+        W: std::fmt::Debug,
+    {
+        loop {
             // explore edges of the current node
             let next = self.current_walk.next(graph);
-            match next{
-                Some((w,dest)) =>{
+            match next {
+                Some((w, dest)) => {
                     // visit this edge
-                    let count:u32;
+                    let count: u32;
                     // Count the number of times we visited the destination
-                    if let Some(c) = self.visit_count.get_mut(dest){
+                    if let Some(c) = self.visit_count.get_mut(dest) {
                         *c += 1;
                         count = *c;
-                    }
-                    else{
+                    } else {
                         self.visit_count.insert(dest, 1).unwrap();
-                        count =1;
+                        count = 1;
                     }
                     // If we visited the destination through all its incoming edges,
                     // put it in the list of nodes to visit
-                    if graph.nodes.get(dest).unwrap().nb_in == count{
+                    if graph.nodes.get(dest).unwrap().nb_in == count {
                         self.next_nodes.push_back(dest);
                     }
                     return Some((w, self.current_node, dest));
-                },
-                None =>{
+                }
+                None => {
                     // No more edge to visit on current node
                     // peek a new node in next list
                     match self.next_nodes.pop_front() {
@@ -282,27 +333,23 @@ where U:From<u64>, U:Into<u64>, U:Copy {
                             continue;
                         }
                     }
-                } 
+                }
             }
         }
     }
 }
 
-
-
-
 //*************************
 // Geometric solver
 
-
 // edges contain the constraints on minimum dimensions
 #[derive(Debug, PartialEq, Default, Copy, Clone)]
-struct SolverEdge{
+struct SolverEdge {
     length: u32,
 }
 
 #[derive(Debug, PartialEq)]
-pub struct SolverNode{
+pub struct SolverNode {
     pub min_val: Option<u32>,
     pub max_val: Option<u32>,
     //dist0: Option<u32>, // distance to previous edge X
@@ -310,194 +357,245 @@ pub struct SolverNode{
 }
 
 #[derive(Debug, PartialEq)]
-pub struct SolverGraph<U>{
-    graph: Digraph<SolverNode, SolverEdge, U>
+pub struct SolverGraph<U> {
+    graph: Digraph<SolverNode, SolverEdge, U>,
 }
-
 
 // Iterate over solver nodes
 pub struct SolverNodeIterator<'a, U> {
     graph: &'a SolverGraph<U>,
-    iter: UidStoreIterator<'a, DigraphNode<SolverNode>, U>
+    iter: UidStoreIterator<'a, DigraphNode<SolverNode>, U>,
 }
 
 impl<U> SolverGraph<U>
-where U:From<u64>, U:Into<u64>, U:Copy, U:Eq, U: std::fmt::Debug {
+where
+    U: From<u64>,
+    U: Into<u64>,
+    U: Copy,
+    U: Eq,
+    U: std::fmt::Debug,
+{
     pub fn new() -> Self {
-        SolverGraph{
-            graph: Digraph::new()
+        SolverGraph {
+            graph: Digraph::new(),
         }
     }
 
-    pub fn add_node(&mut self, id:U)->Result<U,&str>{
-        self.graph.add_node(id, SolverNode{ min_val: None, max_val: None})
+    pub fn add_node(&mut self, id: U) -> Result<U, String> {
+        self.graph.add_node(
+            id,
+            SolverNode {
+                min_val: None,
+                max_val: None,
+            },
+        )
     }
 
-    pub fn add_edge(&mut self, orig:U, dest:U, length:u32)->Result<(),()>{
-        self.graph.add_edge(orig, dest, SolverEdge{length})?;
-        Ok(())
+    pub fn add_edge(&mut self, orig: U, dest: U, length: u32) -> Result<(), String> {
+        self.graph.add_edge(orig, dest, SolverEdge { length })
     }
 
-    pub fn solve(&mut self, origin:U){
-        let mut explored_edges:Vec<(u32,U,U)>=Vec::new();
-        let mut walker:DigraphBuddyWalk<U> = DigraphBuddyWalk::new(origin);
+    pub fn solve(&mut self, origin: U) {
+        let mut explored_edges: Vec<(u32, U, U)> = Vec::new();
+        let mut walker: DigraphBuddyWalk<U> = DigraphBuddyWalk::new(origin);
         //Initialize origin
         let mut origin_node = self.graph.nodes.get_mut(origin).unwrap();
         origin_node.data.min_val = Some(0);
         origin_node.data.max_val = Some(0);
 
-        while let Some((e, orig, dest)) = walker.next(&self.graph){
+        while let Some((e, orig, dest)) = walker.next(&self.graph) {
             let orig_node = self.graph.nodes.get(orig).unwrap();
-            let val:u32 = orig_node.data.min_val.unwrap() + e.length;
+            let val: u32 = orig_node.data.min_val.unwrap() + e.length;
 
             let mut dest_node = self.graph.nodes.get_mut(dest).unwrap();
-            dest_node.data.min_val = match dest_node.data.min_val{
+            dest_node.data.min_val = match dest_node.data.min_val {
                 None => Some(val),
-                Some(min) => Some(min.max(val))
+                Some(min) => Some(min.max(val)),
             };
 
             // Keep a stack of explored edges to rewind after
             explored_edges.push((e.length, orig, dest));
         }
 
-
         // rewind the graph and fill the max values
-        while let Some((length, orig, dest)) = explored_edges.pop(){
+        while let Some((length, orig, dest)) = explored_edges.pop() {
             let dest_node = self.graph.nodes.get(dest).unwrap();
             let dest_value = match dest_node.data.max_val {
                 //nodes at the end of the graph don't have a max value, use the min value then
-                None => dest_node.data.min_val.unwrap(), 
-                Some(val) => val
+                None => dest_node.data.min_val.unwrap(),
+                Some(val) => val,
             };
 
-            let val:u32 = dest_value - length;
-            let mut orig_node= self.graph.nodes.get_mut(orig).unwrap();
-            orig_node.data.max_val = match orig_node.data.max_val{
+            let val: u32 = dest_value - length;
+            let mut orig_node = self.graph.nodes.get_mut(orig).unwrap();
+            orig_node.data.max_val = match orig_node.data.max_val {
                 None => Some(val),
-                Some(max) => Some(max.min(val))
+                Some(max) => Some(max.min(val)),
             };
         }
     }
 
-    pub fn get_solution(&self, id:U)->Option<u32>{
+    pub fn get_solution(&self, id: U) -> Option<u32> {
         let node = self.graph.nodes.get(id)?;
-        return match node.data.max_val{
+        return match node.data.max_val {
             None => node.data.min_val,
-            Some(max) => Some((node.data.min_val? + max) / 2)
+            Some(max) => Some((node.data.min_val? + max) / 2),
         };
     }
 
-    pub fn nodes_iter(&self) -> SolverNodeIterator<U>{
+    pub fn nodes_iter(&self) -> SolverNodeIterator<U> {
         SolverNodeIterator::new(self)
     }
 }
 
-
-
-impl <'a, U> SolverNodeIterator<'a, U>
-where U:From<u64>, U:Into<u64>, U:Copy {
-    pub fn new(graph :&'a SolverGraph<U>) -> Self {
-        SolverNodeIterator{
+impl<'a, U> SolverNodeIterator<'a, U>
+where
+    U: From<u64>,
+    U: Into<u64>,
+    U: Copy,
+    U: Debug,
+{
+    pub fn new(graph: &'a SolverGraph<U>) -> Self {
+        SolverNodeIterator {
             graph,
-            iter: graph.graph.nodes.iter()
+            iter: graph.graph.nodes.iter(),
         }
     }
 }
 
-impl <'a, U> Iterator for SolverNodeIterator<'a, U>
-where U:From<u64>, U:Into<u64>, U:Copy {
+impl<'a, U> Iterator for SolverNodeIterator<'a, U>
+where
+    U: From<u64>,
+    U: Into<u64>,
+    U: Copy,
+{
     type Item = (U, &'a SolverNode);
 
     fn next(&mut self) -> Option<(U, &'a SolverNode)> {
         let (id, node) = self.iter.next()?;
         Some((id, &node.data))
-    }    
+    }
 }
-
 
 //////////////////////////////////
 // Path finder
 
 // edges contain the constraints on minimum dimensions
 #[derive(Debug, PartialEq, Default, Copy, Clone)]
-struct PathEdge{
+struct PathEdge<A> {
     length: u32,
+    data: A,
 }
 
 #[derive(Debug, PartialEq)]
-pub struct PathNode{
+pub struct PathNode {
     pub walkable: bool, // if false, the node is only an entry or exit point
 }
-
 
 // A struct used to store node context during graph traversal
 // Not part of the graph itself
 #[derive(Debug, PartialEq)]
-struct PathNodeInfo<U>{
-    pub dist: u32, // shortest distance from origin
-    pub shortest: U //shorted incoming path
+struct PathNodeInfo<U> {
+    pub dist: u32,   // shortest distance from origin
+    pub shortest: U, //shorted incoming path
 }
 
-pub struct PathFinderGraph<U>{
-    graph: Graph<PathNode,PathEdge,U>
+pub struct PathFinderGraph<U, A> {
+    graph: Graph<PathNode, PathEdge<A>, U>,
 }
 
-
-impl<U> PathFinderGraph<U>
-where U:From<u64>, U:Into<u64>, U:Copy, U:Eq, U: std::fmt::Debug {
+impl<U, A> PathFinderGraph<U, A>
+where
+    U: From<u64>,
+    U: Into<u64>,
+    U: Copy,
+    U: Eq,
+    U: std::fmt::Debug,
+    A: Copy,
+    A: std::fmt::Debug,
+{
     pub fn new() -> Self {
-        PathFinderGraph{
-            graph: Graph::new()
+        PathFinderGraph {
+            graph: Graph::new(),
         }
     }
 
-    pub fn add_node(&mut self, id:U, walkable:bool)->Result<U,&str>{
-        self.graph.add_node(id, PathNode{ walkable})
+    pub fn add_node(&mut self, id: U, walkable: bool) -> Result<U, String> {
+        self.graph.add_node(id, PathNode { walkable })
     }
 
-    pub fn add_edge(&mut self, orig:U, dest:U, length:u32)->Result<(),()>{
-        self.graph.add_edge(orig, dest, PathEdge{length})?;
+    pub fn add_edge(&mut self, orig: U, dest: U, length: u32, data: A) -> Result<(), String> {
+        self.graph.add_edge(orig, dest, PathEdge { length, data })?;
         Ok(())
     }
 
+    pub fn get_edge(&self, orig: U, dest: U) -> Option<(u32, A)> {
+        let edge = self.graph.get_edge(orig, dest)?;
+        Some((edge.length, edge.data))
+    }
 
-    pub fn solve(&mut self, origin:U, destination:U)->Result<Vec<U>,()>{
+    pub fn solve(&self, origin: U, destination: U) -> Result<Vec<U>, ()> {
         let mut next_nodes: VecDeque<U> = VecDeque::new();
         let mut visited: UidStore<PathNodeInfo<U>, U> = UidStore::new();
         next_nodes.push_back(origin);
-        visited.insert(origin, PathNodeInfo{dist:0, shortest:origin}).unwrap();
+        visited
+            .insert(
+                origin,
+                PathNodeInfo {
+                    dist: 0,
+                    shortest: origin,
+                },
+            )
+            .unwrap();
 
-        while let Some(id) = next_nodes.pop_front(){
+        while let Some(id) = next_nodes.pop_front() {
             let orig_dist = visited.get(id).unwrap().dist;
             let mut walker = self.graph.walk_from(id);
 
-            while let Some((edge, neighbour)) = walker.next(&self.graph.digraph){
+            while let Some((edge, neighbour)) = walker.next(&self.graph.digraph) {
                 let distance = orig_dist + edge.length;
                 let dest = visited.get(neighbour);
-                
-                if dest.is_none()
-                 || dest.unwrap().dist > distance{
-                    visited.set(neighbour, PathNodeInfo{dist:distance, shortest:id}).unwrap();
 
-                    if self.graph.digraph.nodes.get(neighbour).unwrap().data.walkable{
-                        next_nodes.push_back(neighbour);    
+                // If we did not visit the destination,
+                // or if we just found a shorter path to the destination
+                // put the destination node into the next_nodes list
+                if dest.is_none() || dest.unwrap().dist > distance {
+                    visited
+                        .set(
+                            neighbour,
+                            PathNodeInfo {
+                                dist: distance,
+                                shortest: id,
+                            },
+                        )
+                        .unwrap();
+
+                    if self
+                        .graph
+                        .digraph
+                        .nodes
+                        .get(neighbour)
+                        .unwrap()
+                        .data
+                        .walkable
+                    {
+                        next_nodes.push_back(neighbour);
                     }
                 }
             }
         }
 
-
         let mut path: Vec<U> = Vec::new();
         let mut cur = destination;
-        println!("visited: {:?}", visited);
+        //println!("visited: {:?}", visited);
         loop {
             path.insert(0, cur);
             if cur == origin {
                 return Ok(path);
             }
-            match visited.get(cur){
+            match visited.get(cur) {
                 Some(info) => cur = info.shortest,
-                None => return Err(())
+                None => return Err(()),
             }
         }
     }
@@ -507,10 +605,9 @@ where U:From<u64>, U:Into<u64>, U:Copy, U:Eq, U: std::fmt::Debug {
 mod tests {
     use super::*;
 
-
     #[test]
     fn test_edges_ordering1() {
-        let mut gen : GuidManager<Guid> = GuidManager::new();
+        let mut gen: GuidManager<Guid> = GuidManager::new();
         let mut graph: Digraph<u32, u32, Guid> = Digraph::new();
         let id0 = gen.get();
         let id1 = gen.get();
@@ -518,7 +615,7 @@ mod tests {
         let id3 = gen.get();
 
         // Build this graph :
-        // id0 --> id1 --> id2 --> id3 
+        // id0 --> id1 --> id2 --> id3
         graph.add_node(id0, 0).unwrap();
         graph.add_node(id1, 0).unwrap();
         graph.add_node(id2, 0).unwrap();
@@ -534,12 +631,9 @@ mod tests {
         assert_eq!(graph.edges[2].orig, id2);
     }
 
-
-
-
     #[test]
-    fn test_edges_ordering2 () {
-        let mut gen : GuidManager<Guid> = GuidManager::new();
+    fn test_edges_ordering2() {
+        let mut gen: GuidManager<Guid> = GuidManager::new();
         let mut graph: Digraph<u32, u32, Guid> = Digraph::new();
         let id0 = gen.get();
         let id1 = gen.get();
@@ -548,14 +642,13 @@ mod tests {
         let id4 = gen.get();
 
         // Build this graph :
-        // id0 --> id1 --> id2 --> id3 
+        // id0 --> id1 --> id2 --> id3
         //          \->id4-^
         graph.add_node(id0, 0).unwrap();
         graph.add_node(id1, 0).unwrap();
         graph.add_node(id2, 0).unwrap();
         graph.add_node(id3, 0).unwrap();
         graph.add_node(id4, 0).unwrap();
-
 
         graph.add_edge(id0, id1, 1).unwrap();
         graph.add_edge(id2, id3, 1).unwrap();
@@ -571,10 +664,9 @@ mod tests {
         assert_eq!(graph.edges[4].orig, id4);
     }
 
-
     #[test]
-    fn test_edges_ordering3 () {
-        let mut gen : GuidManager<Guid> = GuidManager::new();
+    fn test_edges_ordering3() {
+        let mut gen: GuidManager<Guid> = GuidManager::new();
         let mut graph: Digraph<u32, u32, Guid> = Digraph::new();
         let id0 = gen.get();
         let id1 = gen.get();
@@ -583,7 +675,7 @@ mod tests {
         let id4 = gen.get();
 
         // Build this graph :
-        // id0 --> id1 --> id2 
+        // id0 --> id1 --> id2
         //   \->id4-^       ^
         //    \---> id3 ---/
 
@@ -592,7 +684,6 @@ mod tests {
         graph.add_node(id2, 0).unwrap();
         graph.add_node(id3, 0).unwrap();
         graph.add_node(id4, 0).unwrap();
-
 
         graph.add_edge(id0, id1, 1).unwrap();
         graph.add_edge(id3, id2, 1).unwrap();
@@ -616,8 +707,53 @@ mod tests {
     }
 
     #[test]
+    fn test_getters() {
+        let mut gen: GuidManager<Guid> = GuidManager::new();
+        let mut graph: Digraph<u32, u32, Guid> = Digraph::new();
+        let id0 = gen.get();
+        let id1 = gen.get();
+        let id2 = gen.get();
+        let id3 = gen.get();
+        let id4 = gen.get();
+
+        // Build this graph :
+        // id0 --> id1 --> id2
+        //   \->id4-^       ^
+        //    \---> id3 ---/
+
+        graph.add_node(id0, 0).unwrap();
+        graph.add_node(id1, 10).unwrap();
+        graph.add_node(id2, 20).unwrap();
+        graph.add_node(id3, 30).unwrap();
+        graph.add_node(id4, 40).unwrap();
+
+        graph.add_edge(id0, id1, 1).unwrap();
+        graph.add_edge(id3, id2, 2).unwrap();
+        graph.add_edge(id0, id3, 3).unwrap();
+        graph.add_edge(id1, id2, 4).unwrap();
+        graph.add_edge(id4, id1, 5).unwrap();
+        graph.add_edge(id0, id4, 6).unwrap();
+
+        assert_eq!(graph.get_node(id0), Some(&0));
+        assert_eq!(graph.get_node(id1), Some(&10));
+        assert_eq!(graph.get_node(id2), Some(&20));
+        assert_eq!(graph.get_node(id3), Some(&30));
+        assert_eq!(graph.get_node(id4), Some(&40));
+
+        assert_eq!(graph.get_edge(id0, id1), Some(&1));
+        assert_eq!(graph.get_edge(id3, id2), Some(&2));
+        assert_eq!(graph.get_edge(id0, id3), Some(&3));
+        assert_eq!(graph.get_edge(id1, id2), Some(&4));
+        assert_eq!(graph.get_edge(id4, id1), Some(&5));
+        assert_eq!(graph.get_edge(id0, id4), Some(&6));
+
+        assert_eq!(graph.get_edge(id1, id3), None);
+        assert_eq!(graph.get_node(gen.get()), None);
+    }
+
+    #[test]
     fn test_adjacent_walk() {
-        let mut gen : GuidManager<Guid> = GuidManager::new();
+        let mut gen: GuidManager<Guid> = GuidManager::new();
         let mut graph: Digraph<u32, u32, Guid> = Digraph::new();
         let id0 = gen.get();
         let id1 = gen.get();
@@ -637,7 +773,6 @@ mod tests {
         graph.add_node(id3, 0).unwrap();
         graph.add_node(id4, 0).unwrap();
         graph.add_node(id5, 0).unwrap();
-
 
         graph.add_edge(id0, id1, 1).unwrap();
         graph.add_edge(id1, id2, 1).unwrap();
@@ -661,10 +796,9 @@ mod tests {
         assert_eq!(walk3.next(&graph), None);
     }
 
-
     #[test]
     fn test_buddy_walk() {
-        let mut gen : GuidManager<Guid> = GuidManager::new();
+        let mut gen: GuidManager<Guid> = GuidManager::new();
         let mut graph: Digraph<u32, u32, Guid> = Digraph::new();
         let id0 = gen.get();
         let id1 = gen.get();
@@ -687,7 +821,6 @@ mod tests {
         graph.add_node(id5, 0).unwrap();
         graph.add_node(id6, 0).unwrap();
 
-
         graph.add_edge(id0, id1, 1).unwrap();
         graph.add_edge(id1, id2, 1).unwrap();
         graph.add_edge(id2, id5, 1).unwrap();
@@ -698,21 +831,19 @@ mod tests {
         graph.add_edge(id4, id5, 1).unwrap();
 
         let mut walk = DigraphBuddyWalk::new(id0);
-        assert_eq!(walk.next(&graph), Some((1,id0, id4)));
-        assert_eq!(walk.next(&graph), Some((1,id0, id1)));
-        assert_eq!(walk.next(&graph), Some((1,id4, id5)));
-        assert_eq!(walk.next(&graph), Some((1,id1, id3)));
-        assert_eq!(walk.next(&graph), Some((1,id1, id2)));
-        assert_eq!(walk.next(&graph), Some((1,id3, id5)));
-        assert_eq!(walk.next(&graph), Some((1,id2, id5)));
-        assert_eq!(walk.next(&graph), Some((1,id5, id6)));
-
+        assert_eq!(walk.next(&graph), Some((1, id0, id4)));
+        assert_eq!(walk.next(&graph), Some((1, id0, id1)));
+        assert_eq!(walk.next(&graph), Some((1, id4, id5)));
+        assert_eq!(walk.next(&graph), Some((1, id1, id3)));
+        assert_eq!(walk.next(&graph), Some((1, id1, id2)));
+        assert_eq!(walk.next(&graph), Some((1, id3, id5)));
+        assert_eq!(walk.next(&graph), Some((1, id2, id5)));
+        assert_eq!(walk.next(&graph), Some((1, id5, id6)));
     }
-
 
     #[test]
     fn test_solver() {
-        let mut gen : GuidManager<Guid> = GuidManager::new();
+        let mut gen: GuidManager<Guid> = GuidManager::new();
         let mut solver: SolverGraph<Guid> = SolverGraph::new();
         let id0 = gen.get();
         let id1 = gen.get();
@@ -723,7 +854,7 @@ mod tests {
         // Build this graph :
         // id0 -> id1 -> id2 -> id4
         //   \----> id3  ------^
-        
+
         solver.add_node(id0).unwrap();
         solver.add_node(id1).unwrap();
         solver.add_node(id2).unwrap();
@@ -746,11 +877,9 @@ mod tests {
         assert_eq!(solver.get_solution(id2), Some(9));
     }
 
-
-
     #[test]
     fn test_graph() {
-        let mut gen : GuidManager<Guid> = GuidManager::new();
+        let mut gen: GuidManager<Guid> = GuidManager::new();
         let mut graph: Graph<u32, u32, Guid> = Graph::new();
         let id0 = gen.get();
         let id1 = gen.get();
@@ -758,11 +887,10 @@ mod tests {
         let id3 = gen.get();
 
         // Build this graph :
-        // id0 <-> id1 
+        // id0 <-> id1
         //  | ^----v |
         // id3 <-> id2
-        
-        
+
         graph.add_node(id0, 0).unwrap();
         graph.add_node(id1, 0).unwrap();
         graph.add_node(id2, 0).unwrap();
@@ -773,11 +901,11 @@ mod tests {
         graph.add_edge(id2, id3, 0).unwrap();
         graph.add_edge(id3, id0, 0).unwrap();
         graph.add_edge(id2, id0, 0).unwrap();
-        
+
         {
             let mut walker = graph.walk_from(id0);
-            let mut neighbours:Vec<u64>=Vec::new();
-            while let Some((_, id)) = walker.next(&graph.digraph){
+            let mut neighbours: Vec<u64> = Vec::new();
+            while let Some((_, id)) = walker.next(&graph.digraph) {
                 neighbours.push(id.into());
             }
             neighbours.sort();
@@ -785,8 +913,8 @@ mod tests {
         }
         {
             let mut walker = graph.walk_from(id1);
-            let mut neighbours:Vec<u64>=Vec::new();
-            while let Some((_, id)) = walker.next(&graph.digraph){
+            let mut neighbours: Vec<u64> = Vec::new();
+            while let Some((_, id)) = walker.next(&graph.digraph) {
                 neighbours.push(id.into());
             }
             neighbours.sort();
@@ -794,8 +922,8 @@ mod tests {
         }
         {
             let mut walker = graph.walk_from(id2);
-            let mut neighbours:Vec<u64>=Vec::new();
-            while let Some((_, id)) = walker.next(&graph.digraph){
+            let mut neighbours: Vec<u64> = Vec::new();
+            while let Some((_, id)) = walker.next(&graph.digraph) {
                 neighbours.push(id.into());
             }
             neighbours.sort();
@@ -803,8 +931,8 @@ mod tests {
         }
         {
             let mut walker = graph.walk_from(id3);
-            let mut neighbours:Vec<u64>=Vec::new();
-            while let Some((_, id)) = walker.next(&graph.digraph){
+            let mut neighbours: Vec<u64> = Vec::new();
+            while let Some((_, id)) = walker.next(&graph.digraph) {
                 neighbours.push(id.into());
             }
             neighbours.sort();
@@ -812,72 +940,63 @@ mod tests {
         }
     }
 
-
-
-
     #[test]
     fn test_pathfinder1() {
-        let mut gen : GuidManager<Guid> = GuidManager::new();
-        let mut graph: PathFinderGraph<Guid> = PathFinderGraph::new();
+        let mut gen: GuidManager<Guid> = GuidManager::new();
+        let mut graph: PathFinderGraph<Guid, ()> = PathFinderGraph::new();
         let id0 = gen.get();
         let id1 = gen.get();
         let id2 = gen.get();
         let id3 = gen.get();
         let id4 = gen.get();
-        
 
         // Build this graph :
         // id0 <-> id1 <-> id2 <-> id3
         //     \--   id4  --/
-        
+
         graph.add_node(id0, true).unwrap();
         graph.add_node(id1, true).unwrap();
         graph.add_node(id2, true).unwrap();
         graph.add_node(id3, true).unwrap();
         graph.add_node(id4, true).unwrap();
 
-        graph.add_edge(id0, id1, 1).unwrap();
-        graph.add_edge(id1, id2, 1).unwrap();
-        graph.add_edge(id2, id3, 1).unwrap();
-        graph.add_edge(id0, id4, 4).unwrap();
-        graph.add_edge(id4, id3, 4).unwrap();
+        graph.add_edge(id0, id1, 1, ()).unwrap();
+        graph.add_edge(id1, id2, 1, ()).unwrap();
+        graph.add_edge(id2, id3, 1, ()).unwrap();
+        graph.add_edge(id0, id4, 4, ()).unwrap();
+        graph.add_edge(id4, id3, 4, ()).unwrap();
 
         let result = graph.solve(id0, id3);
         assert_eq!(result, Ok(vec![id0, id1, id2, id3]));
     }
 
-
     #[test]
     fn test_pathfinder2() {
-        let mut gen : GuidManager<Guid> = GuidManager::new();
-        let mut graph: PathFinderGraph<Guid> = PathFinderGraph::new();
+        let mut gen: GuidManager<Guid> = GuidManager::new();
+        let mut graph: PathFinderGraph<Guid, ()> = PathFinderGraph::new();
         let id0 = gen.get();
         let id1 = gen.get();
         let id2 = gen.get();
         let id3 = gen.get();
         let id4 = gen.get();
-        
 
         // Build this graph :
         // id0 <-> id1 <-> id2 <-> id3
         //     \-----   id4  -----/
-        
+
         graph.add_node(id0, true).unwrap();
         graph.add_node(id1, false).unwrap();
         graph.add_node(id2, true).unwrap();
         graph.add_node(id3, true).unwrap();
         graph.add_node(id4, true).unwrap();
 
-        graph.add_edge(id0, id1, 1).unwrap();
-        graph.add_edge(id1, id2, 1).unwrap();
-        graph.add_edge(id2, id3, 1).unwrap();
-        graph.add_edge(id0, id4, 4).unwrap();
-        graph.add_edge(id4, id3, 4).unwrap();
+        graph.add_edge(id0, id1, 1, ()).unwrap();
+        graph.add_edge(id1, id2, 1, ()).unwrap();
+        graph.add_edge(id2, id3, 1, ()).unwrap();
+        graph.add_edge(id0, id4, 4, ()).unwrap();
+        graph.add_edge(id4, id3, 4, ()).unwrap();
 
         let result = graph.solve(id0, id3);
         assert_eq!(result, Ok(vec![id0, id4, id3]));
     }
-
-
-
 }
